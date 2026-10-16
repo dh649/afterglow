@@ -1,0 +1,209 @@
+import { useEffect, useState } from "react";
+import { useAsync, href } from "../lib/hooks";
+import { controls } from "../lib/player";
+import { pickImage, playlistCount, playlistTracks, spotify, type Paging, type Track } from "../lib/spotify";
+import { CollectionHeader, HeaderSkeleton, totalDuration } from "../components/CollectionHeader";
+import { TrackList, TrackListSkeleton } from "../components/TrackList";
+import { Shelf } from "../components/Shelf";
+import { Tile } from "../components/Tile";
+import { LikeButton } from "../components/LikeButton";
+
+function Failed({ what, error }: { what: string; error: Error }) {
+  return (
+    <div className="page">
+      <p className="inline-note">
+        Couldn't open this {what}: {error.message}. <a href={href.home()}>Go home</a>
+      </p>
+    </div>
+  );
+}
+
+const shuffleOn = async (play: () => unknown) => {
+  await controls.setShuffle(true);
+  await play();
+};
+
+/* ---------- Playlist ---------- */
+
+export function PlaylistPage({ id }: { id: string }) {
+  const { data: p, error } = useAsync(`playlist:${id}`, () => spotify.playlist(id));
+  const [more, setMore] = useState<Track[]>([]);
+  const first = p ? playlistTracks(p) : null;
+
+  // Load the remaining pages of songs for long playlists.
+  useEffect(() => {
+    setMore([]);
+    if (!p) return;
+    let next = ((p.items ?? p.tracks) as Paging<unknown> | undefined)?.next ?? null;
+    let live = true;
+    (async () => {
+      while (next && live) {
+        const page = await spotify.page<{ item?: Track | null; track?: Track | null }>(next).catch(() => null);
+        if (!page) break;
+        const songs = page.items.map((x) => x.item ?? x.track).filter((t): t is Track => !!t?.id);
+        if (live) setMore((m) => [...m, ...songs]);
+        next = page.next;
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [p]);
+
+  if (error) return <Failed what="playlist" error={error} />;
+  if (!p) return <div className="page"><HeaderSkeleton /><TrackListSkeleton /></div>;
+
+  const tracks = first ? [...first, ...more] : null;
+  const count = playlistCount(p) ?? tracks?.length;
+  return (
+    <div className="page">
+      <CollectionHeader
+        kind="Playlist"
+        title={p.name}
+        image={pickImage(p.images, 400)}
+        description={p.description?.replace(/<[^>]+>/g, "")}
+        contextUri={p.uri}
+        meta={
+          <>
+            <span>{p.owner.display_name}</span>
+            {count !== undefined && <span>{count} songs</span>}
+            {tracks && <span>{totalDuration(tracks.reduce((n, t) => n + t.duration_ms, 0))}</span>}
+          </>
+        }
+        onPlay={() => controls.playContext(p.uri)}
+        onShuffle={() => shuffleOn(() => controls.playContext(p.uri))}
+      />
+      {tracks ? (
+        <TrackList tracks={tracks} onPlay={(i) => controls.playContext(p.uri, { uri: tracks[i].uri })} />
+      ) : (
+        <p className="inline-note">
+          Spotify only shares the song list for playlists you made or collaborate on. Press play and it'll still play here.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Album ---------- */
+
+export function AlbumPage({ id }: { id: string }) {
+  const { data: a, error } = useAsync(`album:${id}`, () => spotify.album(id));
+  if (error) return <Failed what="album" error={error} />;
+  if (!a) return <div className="page"><HeaderSkeleton /><TrackListSkeleton /></div>;
+
+  const tracks: Track[] = a.tracks.items.map((t) => ({ ...t, album: a }));
+  return (
+    <div className="page">
+      <CollectionHeader
+        kind={a.album_type === "single" ? "Single" : "Album"}
+        title={a.name}
+        image={pickImage(a.images, 400)}
+        contextUri={a.uri}
+        meta={
+          <>
+            {a.artists?.map((ar) => (
+              <a key={ar.id} href={href.artist(ar.id)}>
+                {ar.name}
+              </a>
+            ))}
+            {a.release_date && <span>{a.release_date.slice(0, 4)}</span>}
+            <span>{a.total_tracks ?? tracks.length} songs</span>
+            <span>{totalDuration(tracks.reduce((n, t) => n + t.duration_ms, 0))}</span>
+          </>
+        }
+        onPlay={() => controls.playContext(a.uri)}
+        onShuffle={() => shuffleOn(() => controls.playContext(a.uri))}
+        extra={<LikeButton uri={a.uri} label="album" />}
+      />
+      <TrackList tracks={tracks} showCover={false} showAlbum={false} onPlay={(i) => controls.playContext(a.uri, { position: i })} />
+      {a.label && <p className="fine-print">{a.label}</p>}
+    </div>
+  );
+}
+
+/* ---------- Artist ---------- */
+
+export function ArtistPage({ id }: { id: string }) {
+  const { data: a, error } = useAsync(`artist:${id}`, () => spotify.artist(id));
+  const releases = useAsync(`artist-albums:${id}`, () => spotify.artistAlbums(id));
+  if (error) return <Failed what="artist" error={error} />;
+  if (!a) return <div className="page"><HeaderSkeleton /></div>;
+
+  const albums = releases.data?.items.filter((r) => r.album_type !== "single") ?? [];
+  const singles = releases.data?.items.filter((r) => r.album_type === "single") ?? [];
+  return (
+    <div className="page">
+      <CollectionHeader
+        kind="Artist"
+        title={a.name}
+        image={pickImage(a.images, 400)}
+        round
+        contextUri={a.uri}
+        meta={a.genres?.length ? <span>{a.genres.slice(0, 3).join(", ")}</span> : undefined}
+        onPlay={() => controls.playContext(a.uri)}
+      />
+      {albums.length > 0 && (
+        <Shelf title="Albums">
+          {albums.map((r) => (
+            <Tile key={r.id} title={r.name} subtitle={r.release_date?.slice(0, 4)} image={pickImage(r.images)} href={href.album(r.id)} onPlay={() => controls.playContext(r.uri)} />
+          ))}
+        </Shelf>
+      )}
+      {singles.length > 0 && (
+        <Shelf title="Singles and EPs">
+          {singles.map((r) => (
+            <Tile key={r.id} title={r.name} subtitle={r.release_date?.slice(0, 4)} image={pickImage(r.images)} href={href.album(r.id)} onPlay={() => controls.playContext(r.uri)} />
+          ))}
+        </Shelf>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Liked songs ---------- */
+
+export function LikedPage() {
+  const [tracks, setTracks] = useState<Track[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [next, setNext] = useState<number | null>(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = async (offset: number) => {
+    setLoading(true);
+    try {
+      const page = await spotify.liked(offset);
+      setTracks((t) => [...(offset ? (t ?? []) : []), ...page.items.map((x) => x.track)]);
+      setTotal(page.total);
+      setNext(page.next ? offset + page.items.length : null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load(0);
+  }, []);
+
+  if (error && !tracks) return <Failed what="list" error={new Error(error)} />;
+  const uris = tracks?.map((t) => t.uri) ?? [];
+  return (
+    <div className="page">
+      <CollectionHeader
+        kind="Playlist"
+        title="Liked songs"
+        meta={<span>{total} songs</span>}
+        onPlay={() => controls.playUris(uris, 0)}
+        onShuffle={() => controls.playUris([...uris].sort(() => Math.random() - 0.5), 0)}
+      />
+      {tracks ? <TrackList tracks={tracks} onPlay={(i) => controls.playUris(uris, i)} /> : <TrackListSkeleton />}
+      {next !== null && tracks && (
+        <button className="pill-btn load-more" onClick={() => load(next)} disabled={loading}>
+          {loading ? "Loading…" : "Show more"}
+        </button>
+      )}
+    </div>
+  );
+}
