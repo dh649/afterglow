@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { forgetLyrics, getLyrics, type LyricLine, type Lyrics as LyricsData } from "../lib/lyrics";
-import { controls, currentPosition, player, type NowPlaying } from "../lib/player";
+import { controls, currentPosition, type NowPlaying } from "../lib/player";
 import { settings } from "../lib/settings";
 import { useStore } from "../lib/store";
-import { useFrame } from "../lib/hooks";
 
 /**
  * Word timing: uses real per-word times when the lyrics include them, otherwise
@@ -23,44 +22,87 @@ function wordsOf(line: LyricLine) {
   });
 }
 
-function Line({ line, state, pos, onSeek }: { line: LyricLine; state: "past" | "now" | "next"; pos: number; onSeek: () => void }) {
-  const words = useMemo(() => wordsOf(line), [line]);
+/**
+ * Lines light up slightly before their timestamp. Singers start a word a
+ * beat before LRC files usually mark it, so this makes lyrics feel on time.
+ */
+const LEAD_MS = 150;
+
+type Word = ReturnType<typeof wordsOf>[number];
+type State = "past" | "now" | "next";
+
+/**
+ * One line of lyrics. Memoized: it only re-renders when it becomes past/now/next.
+ * While it's the current line, Synced paints its word fill directly (no re-render).
+ */
+const Line = memo(function Line({ line, words, state, index, onSeek }: { line: LyricLine; words: Word[]; state: State; index: number; onSeek: (i: number) => void }) {
   if (!line.text) {
     // An instrumental gap: three dots that fill in as it passes.
-    const pct = state === "now" ? (pos - line.time) / (line.end - line.time) : state === "past" ? 1 : 0;
     if (line.end - line.time < 3500) return null;
     return (
       <div className={`lyric gap ${state}`} aria-hidden="true">
         {[0, 1, 2].map((i) => (
-          <i key={i} style={{ opacity: 0.25 + Math.min(1, Math.max(0, pct * 3 - i)) * 0.75 }} />
+          <i key={i} style={{ opacity: state === "past" ? 1 : 0.25 }} />
         ))}
       </div>
     );
   }
+  const fill = state === "past" ? "100%" : "0%";
   return (
-    <button className={`lyric ${state}`} onClick={onSeek}>
-      {words.map((w, i) => {
-        const p = state === "past" ? 1 : state === "next" ? 0 : Math.min(1, Math.max(0, (pos - w.start) / (w.end - w.start)));
-        return (
-          <span key={i} className="w" style={{ "--p": `${(p * 100).toFixed(1)}%` } as React.CSSProperties}>
-            {w.text}{" "}
-          </span>
-        );
-      })}
+    <button className={`lyric ${state}`} onClick={() => onSeek(index)}>
+      {words.map((w, i) => (
+        <span key={i} className="w" style={{ "--p": fill } as React.CSSProperties}>
+          {w.text}{" "}
+        </span>
+      ))}
     </button>
   );
-}
+});
 
 function Synced({ lines }: { lines: LyricLine[] }) {
-  const paused = useStore(player, (s) => s.paused);
-  const offset = useStore(settings, (s) => s.lyricsOffsetMs);
-  useFrame(!paused);
-  const pos = currentPosition() + offset;
+  const timed = useMemo(() => lines.map(wordsOf), [lines]);
+  const [active, setActive] = useState(-1);
+  const activeRef = useRef(-1);
   const box = useRef<HTMLDivElement>(null);
   const userScrolledAt = useRef(0);
 
-  let active = -1;
-  for (let i = 0; i < lines.length; i++) if (lines[i].time <= pos) active = i;
+  // One animation loop drives everything. React only re-renders when the
+  // current line changes; the word-by-word fill is painted straight onto the
+  // page, which keeps it smooth even on slower computers.
+  useEffect(() => {
+    let raf = 0;
+    let lastPaint = "";
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const pos = currentPosition() + settings.get().lyricsOffsetMs + LEAD_MS;
+      let a = -1;
+      for (let i = 0; i < lines.length && lines[i].time <= pos; i++) a = i;
+      if (a !== activeRef.current) {
+        activeRef.current = a;
+        lastPaint = "";
+        setActive(a);
+        return;
+      }
+      if (a < 0) return;
+      const el = box.current?.querySelector<HTMLElement>(`[data-i="${a}"]`);
+      if (!el) return;
+      const line = lines[a];
+      if (!line.text) {
+        const pct = (pos - line.time) / (line.end - line.time);
+        el.querySelectorAll<HTMLElement>(".gap i").forEach((dot, i) => {
+          dot.style.opacity = String(0.25 + Math.min(1, Math.max(0, pct * 3 - i)) * 0.75);
+        });
+        return;
+      }
+      const fills = timed[a].map((w) => `${(Math.min(1, Math.max(0, (pos - w.start) / (w.end - w.start))) * 100).toFixed(1)}%`);
+      const key = fills.join();
+      if (key === lastPaint) return; // nothing changed (paused, or between words)
+      lastPaint = key;
+      el.querySelectorAll<HTMLElement>(".w").forEach((span, i) => span.style.setProperty("--p", fills[i] ?? "100%"));
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [lines, timed]);
 
   useEffect(() => {
     const el = box.current?.querySelector<HTMLElement>(`[data-i="${Math.max(active, 0)}"]`);
@@ -70,6 +112,14 @@ function Synced({ lines }: { lines: LyricLine[] }) {
     box.current.scrollTo({ top: target, behavior: smooth ? "smooth" : "auto" });
   }, [active]);
 
+  const seek = useCallback(
+    (i: number) => {
+      userScrolledAt.current = 0;
+      controls.seek(Math.max(0, lines[i].time - settings.get().lyricsOffsetMs - LEAD_MS));
+    },
+    [lines],
+  );
+
   const markScroll = () => (userScrolledAt.current = Date.now());
 
   return (
@@ -77,15 +127,7 @@ function Synced({ lines }: { lines: LyricLine[] }) {
       <div className="lyrics-pad" />
       {lines.map((l, i) => (
         <div data-i={i} key={i} className="lyric-wrap" style={{ "--d": Math.min(Math.abs(i - active), 6) } as React.CSSProperties}>
-          <Line
-            line={l}
-            state={i < active ? "past" : i === active ? "now" : "next"}
-            pos={pos}
-            onSeek={() => {
-              userScrolledAt.current = 0;
-              controls.seek(Math.max(0, l.time - offset));
-            }}
-          />
+          <Line line={l} words={timed[i]} index={i} state={i < active ? "past" : i === active ? "now" : "next"} onSeek={seek} />
         </div>
       ))}
       <div className="lyrics-pad" />

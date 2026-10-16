@@ -5,12 +5,14 @@ import { useStore } from "../lib/store";
 
 /**
  * Album art redrawn as slowly rotating, overlapping layers on a tiny canvas,
- * then blurred and stretched by CSS. Cheap to run, and it looks like the cover
+ * blurred inside the canvas, then stretched to fill the screen. Cheap to run, and it looks like the cover
  * has melted into the room.
  */
 function AlbumCanvas({ image, blur, animate }: { image?: string; blur: number; animate: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const layers = useRef<{ img: HTMLImageElement; born: number }[]>([]);
+  const blurRef = useRef(blur);
+  blurRef.current = blur;
 
   // Load each new cover and crossfade it in over the previous one.
   useEffect(() => {
@@ -26,7 +28,7 @@ function AlbumCanvas({ image, blur, animate }: { image?: string; blur: number; a
     const c = canvas.current!;
     const ctx = c.getContext("2d")!;
     const resize = () => {
-      const scale = 0.12; // render small; CSS blur hides the pixels
+      const scale = 0.12; // render small; the browser smooths it when stretched
       c.width = Math.max(64, Math.round(innerWidth * scale));
       c.height = Math.max(40, Math.round(innerHeight * scale));
     };
@@ -45,8 +47,12 @@ function AlbumCanvas({ image, blur, animate }: { image?: string; blur: number; a
       const t = moving ? now / 1000 : 12;
       const { width: w, height: h } = c;
       const size = Math.max(w, h);
+      ctx.filter = "none";
       ctx.fillStyle = "#07080c";
       ctx.fillRect(0, 0, w, h);
+      // Blur and saturate inside the tiny canvas. Doing it in CSS on the
+      // full-screen element was the single biggest cause of choppiness.
+      ctx.filter = `blur(${(Math.max(blurRef.current, 12) * 0.12) / 3}px) saturate(1.5)`;
 
       for (const { img, born } of layers.current) {
         const fade = Math.min(1, (now - born) / 1400);
@@ -74,9 +80,9 @@ function AlbumCanvas({ image, blur, animate }: { image?: string; blur: number; a
       cancelAnimationFrame(raf);
       removeEventListener("resize", resize);
     };
-  }, [animate, image]);
+  }, [animate, image, blur]);
 
-  return <canvas ref={canvas} className="bg-canvas" style={{ filter: `blur(${Math.max(blur, 12) / 4}px) saturate(1.5)` }} aria-hidden="true" />;
+  return <canvas ref={canvas} className="bg-canvas" aria-hidden="true" />;
 }
 
 export function Background() {

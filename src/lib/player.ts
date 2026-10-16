@@ -31,6 +31,7 @@ interface SdkPlayer {
   seek(ms: number): Promise<void>;
   setVolume(v: number): Promise<void>;
   activateElement(): Promise<void>;
+  getCurrentState(): Promise<SdkState | null>;
 }
 declare global {
   interface Window {
@@ -161,6 +162,18 @@ export function connectPlayer() {
       );
     }
     sdk.connect();
+
+    // Spotify only reports the position when something changes (play, pause,
+    // skip), and we estimate it in between. Check in every 2 seconds and
+    // correct any drift so lyrics stay locked to the music.
+    setInterval(async () => {
+      const s = player.get();
+      if (!sdk || s.paused || !s.track || document.visibilityState === "hidden") return;
+      const real = await sdk.getCurrentState().catch(() => null);
+      if (!real || real.paused) return;
+      const drift = real.position - currentPosition();
+      if (Math.abs(drift) > 60) player.set({ position: real.position, stamp: Date.now() });
+    }, 2000);
   };
 
   const s = document.createElement("script");

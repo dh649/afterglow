@@ -22,24 +22,23 @@ When Dylan asks for a change:
 1. Make the change in `src/`.
 2. Run `npm run build` (this also type-checks). Fix any errors.
 3. If the change is visual, preview it with `?demo` (see Testing) and look at it.
-4. Commit with a short, plain message and push to `main`.
-5. The GitHub Action in `.github/workflows/deploy.yml` builds and publishes the
+4. Add an entry to `CHANGELOG.md` (newest first, under today's date, plain
+   language Dylan understands, no jargon). Dylan asked for every update,
+   however small, to be tracked there.
+5. Commit with a short, plain message and push to `main`.
+6. The GitHub Action in `.github/workflows/deploy.yml` builds and publishes the
    site to GitHub Pages. Tell Dylan it'll be live in about a minute.
 
 Don't commit `node_modules/` or `dist/` (both are in `.gitignore`).
 
 ## Hosting and deployment
 
-- Hosted on GitHub Pages at `https://<his-username>.github.io/afterglow/`
-  (repo name `afterglow`, public).
-- Originally the repo held only the built files (`index.html`,
-  `manifest.webmanifest`, `icon.svg`) uploaded by hand. If that's still the
-  case, migrate it:
-  1. Replace the repo contents with this source tree (keep git history).
-  2. In the repo: Settings > Pages > Build and deployment > Source:
-     **GitHub Actions** (Dylan has to click this himself, or you can if you
-     have admin access via `gh api`).
-  3. Push. The workflow builds and deploys.
+- Hosted on GitHub Pages at https://dh649.github.io/afterglow/ (repo
+  `dh649/afterglow`, public). Pages source is set to GitHub Actions, and the
+  migration from hand-uploaded files is done.
+- Cloud sandboxes usually can't open github.io. Confirm deploys through the
+  Actions run status, and ask Dylan to check the live site (or to allow
+  `dh649.github.io` in claude.ai Settings > Capabilities).
 - The Spotify redirect URI is the exact page address, e.g.
   `https://<user>.github.io/afterglow/`. Don't change the repo name or the
   path without telling Dylan; login breaks until he updates the Spotify
@@ -194,6 +193,11 @@ Source: LRCLIB (lrclib.net), free, timed LRC lyrics.
   unreachable) isn't cached, and the UI offers "Try again".
 - Tested live in a browser: Blinding Lights, Bad Habit, Let It Be (Remastered
   2009), FE!N (feat. Playboi Carti), and Sicko Mode all matched directly.
+- Rendering (Lyrics.tsx `Synced`): one requestAnimationFrame loop. React
+  re-renders only when the active line changes; the active line's word fill
+  (`--p` on each `.w` span) and gap dots are written straight to the DOM.
+  Lines are memoized. `LEAD_MS = 150` shows lines slightly early. Position is
+  resynced from `sdk.getCurrentState()` every 2s in player.ts.
 - Most LRCLIB lyrics are line-timed. Per-word fill is estimated across the
   line by word length (`wordsOf` in Lyrics.tsx); real `<mm:ss.xx>` word tags
   are used when present.
@@ -214,8 +218,9 @@ day in localStorage (`afterglow.foryou`). Without a key, Home shows a nudge.
 - One loud element: the lyrics (heavy 800 weight, large, word-by-word fill
   with an accent-colored glow). Everything else is quiet glass.
 - Background (`Background.tsx`): the current cover drawn 4 times, rotating
-  and drifting, on a tiny canvas (12% of screen size) blurred and stretched by
-  CSS, about 30fps, crossfading on track change. Static when motion is off or
+  and drifting, on a tiny canvas (12% of screen size), blurred with
+  `ctx.filter` inside the canvas, then stretched; about 30fps, crossfading on
+  track change. Static when motion is off or
   the OS asks for reduced motion. Other modes: uploaded wallpaper, or plain
   gradient. Plus a dim layer and faint film grain.
 - Accent color: `albumColors()` buckets hues from a 24x24 sample and sets
@@ -239,6 +244,18 @@ lyricsRelay, doubleClick (play/queue). Volume is stored separately
 
 Space play/pause, L lyrics view, N next, P previous, / search, Esc closes
 the lyrics view. Ignored while typing in inputs.
+
+## Performance rules (learned the hard way)
+
+The lyrics view once ran at about 6fps because of visual effects, not
+JavaScript. Keep it smooth:
+
+- Never put CSS `filter`, `backdrop-filter`, or `mix-blend-mode` on large or
+  constantly changing elements (the background canvas, every lyric line).
+  Blur inside the small canvas instead.
+- Don't re-render lists every frame. Animate with refs and CSS variables.
+- Measure before and after: open `?demo`, press L, and count
+  requestAnimationFrame frames over 5s in Playwright (aim for about 60fps).
 
 ## Known gaps and ideas
 
