@@ -164,8 +164,9 @@ export function connectPlayer() {
     sdk.connect();
 
     // Spotify only reports the position when something changes (play, pause,
-    // skip), and we estimate it in between. Check in every 2 seconds and
-    // correct any drift so lyrics stay locked to the music.
+    // skip), and we estimate it in between. Check in every second and correct
+    // any drift so lyrics stay locked to the music. The check is local (no
+    // network), and the 60ms threshold keeps it from jittering.
     setInterval(async () => {
       const s = player.get();
       if (!sdk || s.paused || !s.track || document.visibilityState === "hidden") return;
@@ -173,7 +174,7 @@ export function connectPlayer() {
       if (!real || real.paused) return;
       const drift = real.position - currentPosition();
       if (Math.abs(drift) > 60) player.set({ position: real.position, stamp: Date.now() });
-    }, 2000);
+    }, 1000);
   };
 
   const s = document.createElement("script");

@@ -2,6 +2,13 @@
 
 Every change to Afterglow, newest first, in plain language.
 
+## October 16, 2026
+
+### Faster lyrics sync
+- The app now double-checks the song's position with Spotify every second
+  instead of every 2 seconds, so lyrics recover from buffering hiccups twice
+  as fast. The check happens inside your browser, so it uses no data.
+
 ## October 15, 2026
 
 ### Smoother lyrics

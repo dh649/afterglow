@@ -197,7 +197,8 @@ Source: LRCLIB (lrclib.net), free, timed LRC lyrics.
   re-renders only when the active line changes; the active line's word fill
   (`--p` on each `.w` span) and gap dots are written straight to the DOM.
   Lines are memoized. `LEAD_MS = 150` shows lines slightly early. Position is
-  resynced from `sdk.getCurrentState()` every 2s in player.ts.
+  resynced from `sdk.getCurrentState()` every 1s in player.ts
+  (local call, no network; only corrects drift over 60ms to avoid jitter).
 - Most LRCLIB lyrics are line-timed. Per-word fill is estimated across the
   line by word length (`wordsOf` in Lyrics.tsx); real `<mm:ss.xx>` word tags
   are used when present.
