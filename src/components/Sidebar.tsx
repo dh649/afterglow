@@ -15,7 +15,7 @@ function NavLink({ to, icon, label, active }: { to: string; icon: IconName; labe
 }
 
 export function Sidebar({ route }: { route: Route }) {
-  const playlists = useAsync("playlists", () => spotify.myPlaylists());
+  const playlists = useAsync("playlists", spotify.allPlaylists);
   const contextUri = useStore(player, (s) => s.contextUri);
   const paused = useStore(player, (s) => s.paused);
 

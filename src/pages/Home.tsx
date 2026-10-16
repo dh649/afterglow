@@ -55,7 +55,7 @@ export function Home() {
   const recent = useAsync("recent", spotify.recentlyPlayed);
   const topTracks = useAsync("top:tracks", () => spotify.top("tracks", "short_term", 20));
   const topArtists = useAsync("top:artists", () => spotify.top("artists", "medium_term", 20));
-  const playlists = useAsync("playlists", () => spotify.myPlaylists());
+  const playlists = useAsync("playlists", spotify.allPlaylists);
   const lastfmKey = useStore(settings, (s) => s.lastfmKey);
   const contextUri = useStore(player, (s) => s.contextUri);
 

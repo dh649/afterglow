@@ -4,6 +4,11 @@ Every change to Afterglow, newest first, in plain language.
 
 ## October 16, 2026
 
+### All your playlists show up
+- Fixed playlists going missing. Spotify sends playlists 50 at a time, sorted
+  by most recently played, and the app only loaded the first 50. It now loads
+  all of them, in the sidebar and on Home.
+
 ### Faster lyrics sync
 - The app now double-checks the song's position with Spotify every second
   instead of every 2 seconds, so lyrics recover from buffering hiccups twice

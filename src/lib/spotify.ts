@@ -102,6 +102,18 @@ export const spotify = {
   top: <T extends "artists" | "tracks">(type: T, range = "short_term", limit = 20) =>
     api<Paging<T extends "artists" ? Artist : Track>>(`/me/top/${type}?time_range=${range}&limit=${limit}`),
   myPlaylists: (offset = 0) => api<Paging<Playlist>>(`/me/playlists?limit=50&offset=${offset}`),
+  /** Every playlist you own or follow. Spotify sends 50 at a time, so keep asking until it's done. */
+  allPlaylists: async () => {
+    const first = await api<Paging<Playlist | null>>("/me/playlists?limit=50");
+    const all = [...first.items];
+    let next = first.next;
+    while (next) {
+      const page = await api<Paging<Playlist | null>>(next);
+      all.push(...page.items);
+      next = page.next;
+    }
+    return { ...first, items: all.filter((p): p is Playlist => !!p), next: null } as Paging<Playlist>;
+  },
   liked: (offset = 0) => api<Paging<{ added_at: string; track: Track }>>(`/me/tracks?limit=50&offset=${offset}`),
   playlist: (id: string) => api<Playlist>(`/playlists/${id}`),
   page: <T>(url: string) => api<Paging<T>>(url),
