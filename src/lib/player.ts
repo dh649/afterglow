@@ -1,6 +1,6 @@
 import { getAccessToken, isDemo } from "./auth";
 import { createStore } from "./store";
-import { spotify, type Track } from "./spotify";
+import { ApiError, spotify, type Track } from "./spotify";
 import { demoQueue } from "./demo";
 
 /* Minimal typings for Spotify's Web Playback SDK. */
@@ -63,6 +63,8 @@ export interface PlayerState {
   shuffle: boolean;
   repeat: "off" | "context" | "track";
   volume: number;
+  /** Set when music is playing on another device (phone, speaker, Spotify app). */
+  remote: { name: string; type: string } | null;
 }
 
 export const player = createStore<PlayerState>({
@@ -78,7 +80,11 @@ export const player = createStore<PlayerState>({
   shuffle: false,
   repeat: "off",
   volume: Number(localStorage.getItem("afterglow.volume") ?? 0.7),
+  remote: null,
 });
+
+/** Bumped whenever the queue changes, so the queue panel knows to reload. */
+export const queueVersion = createStore({ n: 0 });
 
 export function currentPosition() {
   const s = player.get();
@@ -116,6 +122,83 @@ export function fromTrack(t: Track): NowPlaying {
 let sdk: SdkPlayer | null = null;
 const REPEAT = ["off", "context", "track"] as const;
 
+/* ---------- Other devices ----------
+ * The Web Playback SDK only reports music playing in this tab. To see (and
+ * not steal) music playing elsewhere, ask Spotify which device is active.
+ * Only needed while this tab isn't the one playing.
+ */
+
+let playingHere = false;
+let pollTimer: ReturnType<typeof setTimeout> | undefined;
+
+async function checkActiveDevice(): Promise<"idle" | "here" | "remote"> {
+  if (isDemo) return "here";
+  const sent = Date.now();
+  const s = await spotify.playbackState().catch(() => undefined);
+  const latency = (Date.now() - sent) / 2;
+  if (!s?.device) {
+    if (player.get().remote) player.set({ remote: null, paused: true, position: currentPosition(), stamp: Date.now() });
+    return "idle";
+  }
+  if (s.device.id === player.get().deviceId) {
+    if (player.get().remote) player.set({ remote: null });
+    return "here";
+  }
+  const prev = player.get();
+  const track = s.item?.album ? fromTrack(s.item) : null;
+  const position = (s.progress_ms ?? 0) + (s.is_playing ? latency : 0);
+  // Keep the smooth estimate unless it's noticeably off (avoids tiny jumps).
+  const sameSong = prev.remote && prev.track?.uri === track?.uri && prev.paused === !s.is_playing;
+  const keepPosition = sameSong && Math.abs(position - currentPosition()) < 400;
+  player.set({
+    remote: { name: s.device.name, type: s.device.type },
+    track,
+    upNext: sameSong ? prev.upNext : [],
+    contextUri: s.context?.uri ?? null,
+    paused: !s.is_playing,
+    shuffle: s.shuffle_state,
+    repeat: s.repeat_state ?? "off",
+    ...(keepPosition ? {} : { position, stamp: Date.now() }),
+  });
+  return "remote";
+}
+
+/** Checks often while another device is playing, rarely otherwise, never while this tab plays. */
+function schedulePoll() {
+  clearTimeout(pollTimer);
+  if (playingHere || isDemo) return;
+  const s = player.get();
+  const delay = document.visibilityState === "hidden" ? 30_000 : s.remote && !s.paused ? 5_000 : 15_000;
+  pollTimer = setTimeout(async () => {
+    await checkActiveDevice();
+    schedulePoll();
+  }, delay);
+}
+
+function recheckSoon(ms = 700) {
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(async () => {
+    await checkActiveDevice();
+    schedulePoll();
+  }, ms);
+}
+
+const isRemote = () => !!player.get().remote;
+
+/** Runs a command on the other device, updating the screen right away. */
+async function remoteDo(fn: () => Promise<unknown>, optimistic?: Partial<PlayerState>) {
+  if (optimistic) {
+    const position = optimistic.position ?? currentPosition();
+    player.set({ ...optimistic, position, stamp: Date.now() });
+  }
+  try {
+    await fn();
+  } catch (e) {
+    player.set({ error: `Couldn't control ${player.get().remote?.name ?? "the other device"}: ${(e as Error).message}` });
+  }
+  recheckSoon();
+}
+
 function friendlyError(kind: string, message: string) {
   if (kind === "account_error") return "Spotify Premium is needed to play music outside the Spotify app.";
   if (kind === "initialization_error")
@@ -138,14 +221,26 @@ export function connectPlayer() {
     });
     sdk.addListener("ready", ({ device_id }: { device_id: string }) => {
       player.set({ status: "ready", deviceId: device_id, error: "" });
-      // Pick up whatever was last playing in Spotify, but don't start it.
-      spotify.transfer(device_id, false).catch(() => {});
+      // If music is playing on another device, leave it there and show it.
+      // If nothing is playing anywhere, load the last session here, paused.
+      void checkActiveDevice().then((where) => {
+        if (where === "idle") spotify.transfer(device_id, false).catch(() => {});
+        schedulePoll();
+      });
     });
     sdk.addListener("not_ready", () => player.set({ status: "connecting" }));
     sdk.addListener("player_state_changed", (s: SdkState | null) => {
-      if (!s) return;
+      if (!s) {
+        // Playback moved to another device.
+        playingHere = false;
+        recheckSoon(300);
+        return;
+      }
+      playingHere = true;
+      clearTimeout(pollTimer);
       const cur = s.track_window.current_track;
       player.set({
+        remote: null,
         track: cur ? fromSdk(cur) : null,
         upNext: s.track_window.next_tracks.map(fromSdk),
         contextUri: s.context?.uri ?? null,
@@ -169,13 +264,20 @@ export function connectPlayer() {
     // network), and the 60ms threshold keeps it from jittering.
     setInterval(async () => {
       const s = player.get();
-      if (!sdk || s.paused || !s.track || document.visibilityState === "hidden") return;
+      if (!sdk || s.paused || !s.track || s.remote || document.visibilityState === "hidden") return;
       const real = await sdk.getCurrentState().catch(() => null);
       if (!real || real.paused) return;
       const drift = real.position - currentPosition();
       if (Math.abs(drift) > 60) player.set({ position: real.position, stamp: Date.now() });
     }, 1000);
   };
+
+  // Coming back to the window: catch up on what other devices did meanwhile.
+  const onReturn = () => {
+    if (document.visibilityState === "visible" && !playingHere && player.get().status === "ready") recheckSoon(0);
+  };
+  document.addEventListener("visibilitychange", onReturn);
+  addEventListener("focus", onReturn);
 
   const s = document.createElement("script");
   s.src = "https://sdk.scdn.co/spotify-player.js";
@@ -197,26 +299,51 @@ async function withDevice<T>(fn: (device: string) => Promise<T>) {
   }
 }
 
+/**
+ * Starts music in this tab. Spotify occasionally answers "device not found"
+ * when this tab isn't the active device yet; making it active first fixes that.
+ */
+async function playHereWith(device: string, body: Record<string, unknown>) {
+  try {
+    await spotify.play(device, body);
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 404) throw e;
+    await spotify.transfer(device, false);
+    await new Promise((r) => setTimeout(r, 600));
+    await spotify.play(device, body);
+  }
+}
+
 /* ---------- Controls ---------- */
 
 export const controls = {
   playContext: (contextUri: string, offset?: { uri?: string; position?: number }) =>
-    withDevice((d) => (isDemo ? demoPlay() : spotify.play(d, { context_uri: contextUri, ...(offset ? { offset } : {}) }))),
+    withDevice((d) => (isDemo ? demoPlay() : playHereWith(d, { context_uri: contextUri, ...(offset ? { offset } : {}) }))),
   /** For lists without a Spotify context (liked songs, search results). */
   playUris: (uris: string[], index = 0) =>
     withDevice((d) => {
       // Spotify accepts a limited list, so send a window starting at the chosen song.
       const start = Math.max(0, index);
       const slice = uris.slice(start, start + 100);
-      return isDemo ? demoPlay() : spotify.play(d, { uris: slice });
+      return isDemo ? demoPlay() : playHereWith(d, { uris: slice });
     }),
-  toggle: () => (isDemo ? demoToggle() : sdk?.togglePlay()),
-  next: () => (isDemo ? demoSkip(1) : sdk?.nextTrack()),
+  /** Moves whatever is playing on another device to this tab. */
+  playHere: () => withDevice((d) => (isDemo ? demoSet({ remote: null }) : spotify.transfer(d, true))),
+  toggle: () => {
+    if (isDemo) return demoToggle();
+    if (isRemote()) {
+      const paused = player.get().paused;
+      return remoteDo(paused ? spotify.remote.play : spotify.remote.pause, { paused: !paused });
+    }
+    return sdk?.togglePlay();
+  },
+  next: () => (isDemo ? demoSkip(1) : isRemote() ? remoteDo(spotify.remote.next) : sdk?.nextTrack()),
   prev: () => {
     if (currentPosition() > 3000) return controls.seek(0);
-    return isDemo ? demoSkip(-1) : sdk?.previousTrack();
+    return isDemo ? demoSkip(-1) : isRemote() ? remoteDo(spotify.remote.previous) : sdk?.previousTrack();
   },
   seek: (ms: number) => {
+    if (!isDemo && isRemote()) return remoteDo(() => spotify.remote.seek(ms), { position: ms });
     player.set({ position: ms, stamp: Date.now() });
     return isDemo ? undefined : sdk?.seek(Math.round(ms));
   },
@@ -226,13 +353,25 @@ export const controls = {
     return sdk?.setVolume(v);
   },
   shuffle: () => controls.setShuffle(!player.get().shuffle),
-  setShuffle: (on: boolean) => withDevice((d) => (isDemo ? demoSet({ shuffle: on }) : spotify.shuffle(d, on))),
-  cycleRepeat: () =>
-    withDevice((d) => {
-      const next = REPEAT[(REPEAT.indexOf(player.get().repeat) + 1) % 3];
-      return isDemo ? demoSet({ repeat: next }) : spotify.repeat(d, next);
-    }),
-  addToQueue: (uri: string) => withDevice((d) => (isDemo ? Promise.resolve() : spotify.addToQueue(uri, d))),
+  setShuffle: (on: boolean) => {
+    if (isDemo) return demoSet({ shuffle: on });
+    if (isRemote()) return remoteDo(() => spotify.shuffle(undefined, on), { shuffle: on });
+    return withDevice((d) => spotify.shuffle(d, on));
+  },
+  cycleRepeat: () => {
+    const next = REPEAT[(REPEAT.indexOf(player.get().repeat) + 1) % 3];
+    if (isDemo) return demoSet({ repeat: next });
+    if (isRemote()) return remoteDo(() => spotify.repeat(undefined, next), { repeat: next });
+    return withDevice((d) => spotify.repeat(d, next));
+  },
+  addToQueue: async (uri: string) => {
+    if (!isDemo) {
+      if (isRemote()) await spotify.addToQueue(uri).catch((e: Error) => player.set({ error: e.message }));
+      else await withDevice((d) => spotify.addToQueue(uri, d));
+    }
+    // Spotify takes a moment to update its queue list.
+    setTimeout(() => queueVersion.set((q) => ({ n: q.n + 1 })), 400);
+  },
   clearError: () => player.set({ error: "" }),
 };
 
@@ -255,6 +394,8 @@ function demoLoad(i: number, paused: boolean, position = 0) {
 function startDemo() {
   player.set({ status: "ready", deviceId: "demo" });
   demoLoad(0, false, 52_000);
+  // ?demo&remote previews how it looks when music plays on another device.
+  if (new URLSearchParams(location.search).has("remote")) player.set({ remote: { name: "Dylan's iPhone", type: "Smartphone" } });
   demoTimer = window.setInterval(() => {
     const s = player.get();
     if (s.track && !s.paused && currentPosition() >= s.track.durationMs) demoSkip(1);

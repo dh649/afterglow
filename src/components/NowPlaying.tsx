@@ -6,7 +6,7 @@ import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
 import { Lyrics } from "./Lyrics";
 import { Artists } from "./TrackList";
-import { Timeline, Transport } from "./PlayerBar";
+import { DeviceNote, Timeline, Transport } from "./PlayerBar";
 
 /** Full-screen view: big cover and controls on the left, live lyrics on the right. */
 export function NowPlaying({ onClose }: { onClose: () => void }) {
@@ -46,6 +46,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
               </div>
               <LikeButton uri={track.uri} label="song" size={24} />
             </div>
+            <DeviceNote withButton />
             <Timeline />
             <Transport size="big" />
             {upNext.length > 0 && (

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { greeting, href, useAsync } from "../lib/hooks";
+import { greeting, href, library, useAsync } from "../lib/hooks";
 import { controls, player } from "../lib/player";
 import { settings } from "../lib/settings";
 import { useStore } from "../lib/store";
@@ -56,6 +56,8 @@ export function Home() {
   const topTracks = useAsync("top:tracks", () => spotify.top("tracks", "short_term", 20));
   const topArtists = useAsync("top:artists", () => spotify.top("artists", "medium_term", 20));
   const playlists = useAsync("playlists", spotify.allPlaylists);
+  const libraryV = useStore(library, (l) => l.v);
+  const albums = useAsync(`albums:${libraryV}`, spotify.allAlbums);
   const lastfmKey = useStore(settings, (s) => s.lastfmKey);
   const contextUri = useStore(player, (s) => s.contextUri);
 
@@ -197,6 +199,22 @@ export function Home() {
               />
             );
           })}
+        </Shelf>
+      )}
+
+      {!!albums.data?.length && (
+        <Shelf title="Your albums">
+          {albums.data.map((a) => (
+            <Tile
+              key={a.id}
+              title={a.name}
+              subtitle={a.artists?.map((x) => x.name).join(", ")}
+              image={pickImage(a.images)}
+              href={href.album(a.id)}
+              active={contextUri === a.uri}
+              onPlay={() => controls.playContext(a.uri)}
+            />
+          ))}
         </Shelf>
       )}
 

@@ -36,7 +36,7 @@ start failing a lot, make your own (free, about 2 minutes):
 
 ## Shortcuts
 
-Space play/pause · L lyrics · N next · P previous · / search · Esc close lyrics
+Space play/pause · L lyrics · Q queue · N next · P previous · / search · Esc close · media keys work too
 
 ## Working on the code
 

@@ -92,10 +92,12 @@ minimal: react, react-dom, and build tools only.
     src/lib/color.ts            Extracts accent/glow colors from album art
     src/lib/hooks.ts            Hash router, useAsync (cached fetch), useFrame, helpers
     src/lib/demo.ts             Demo fixtures and fake API responses
+    src/lib/mediaSession.ts     Media keys + OS media popup (silent anchor audio, see Playback)
 
     src/components/Background.tsx      Living album-art canvas, wallpaper, dim, grain
-    src/components/Sidebar.tsx         Nav + playlist list
-    src/components/PlayerBar.tsx       Bottom bar, Timeline, Transport, Volume
+    src/components/Sidebar.tsx         Nav + Playlists/Albums switch and list
+    src/components/PlayerBar.tsx       Bottom bar, Timeline, Transport, Volume, DeviceNote
+    src/components/QueuePanel.tsx      Right-hand queue drawer (Q), from /me/player/queue
     src/components/NowPlaying.tsx      Full-screen view: cover, controls, up next, lyrics
     src/components/Lyrics.tsx          Synced lyrics with per-word fill, offset control
     src/components/MiniPlayer.tsx      Floating always-on-top player (Document PiP)
@@ -107,7 +109,7 @@ minimal: react, react-dom, and build tools only.
     src/components/Icon.tsx            Inline SVG icon set
 
     src/pages/Home.tsx          Greeting, jump back in, For you, recently played,
-                                on repeat, top artists, your playlists
+                                on repeat, top artists, your playlists, your albums
     src/pages/Collections.tsx   Playlist, Album, Artist, Liked songs pages
     src/pages/Search.tsx        Search (songs, artists, albums, playlists)
     src/pages/Settings.tsx      All settings
@@ -131,12 +133,31 @@ redirect comes back as `?code=` on the root, handled before render.
 
 ### Playback (src/lib/player.ts)
 
-Loads `https://sdk.scdn.co/spotify-player.js`, registers the tab as a Spotify
-Connect device named "Afterglow", and on `ready` transfers playback to it
-(without auto-playing). `player_state_changed` feeds the `player` store.
-Position is interpolated (`currentPosition()`) from `position` + `stamp`.
+Loads `https://sdk.scdn.co/spotify-player.js` and registers the tab as a
+Spotify Connect device named "Afterglow". `player_state_changed` feeds the
+`player` store. Position is interpolated (`currentPosition()`) from `position` + `stamp`.
 Play commands go through the Web API with `device_id`. `activateElement()` is
 called before playing to satisfy browser autoplay rules.
+
+Other devices (don't steal playback): on `ready`, `checkActiveDevice()` calls
+`GET /me/player`. If another device is active, the store gets
+`remote: { name, type }` plus that device's track/position, and nothing is
+transferred. Only if nothing is playing anywhere does it `transfer(play:false)`
+to load the last session here. While this tab isn't playing (`playingHere`
+false, set from SDK states; a null SDK state means playback left), it polls
+every 5s if the remote is playing, 15s otherwise, 30s when hidden, and again on
+window focus. Controls branch on `isRemote()`: they call the device-less Web
+API (`/me/player/play|pause|next|previous|seek|shuffle|repeat`) through
+`remoteDo()` (optimistic update, then recheck). `controls.playHere` transfers
+with `play:true`. `playContext`/`playUris` play with this `device_id` and retry
+after a transfer on 404. Remote positions keep the smooth estimate unless off
+by 400ms+. `?demo&remote` previews the remote UI.
+
+Media keys (`mediaSession.ts`): sets `navigator.mediaSession` metadata and
+handlers. The SDK's audio lives in its own iframe, and Chrome routes media keys
+to the top-most frame that has a media player, so the page plays a silent,
+looping 6s WAV (generated in JS; clips under 5s are ignored) only while music
+plays in this tab. Started on the first pointerdown/keydown (autoplay rules).
 
 Hard limits: needs Premium (`account_error`), and only works in browsers with
 Widevine DRM (Chrome, Edge). Spotify doesn't support the SDK on mobile
@@ -165,9 +186,12 @@ Spotify locked down Development Mode apps in Nov 2024 and again Feb/Mar 2026:
   URI types listed by Spotify don't include artists, so there's no Follow
   button on artist pages.
 - Still available and used: `/me`, `/me/playlists`, `/me/tracks` (GET),
-  `/me/top/{type}`, `/me/player/*` (play, transfer, shuffle, repeat, queue,
-  recently-played), `/playlists/{id}`, `/albums/{id}`, `/artists/{id}`,
-  `/artists/{id}/albums`, `/search`.
+  `/me/albums` (GET), `/me/top/{type}`, `/me/player` (GET state, PUT
+  transfer), `/me/player/*` (play, pause, next, previous, seek, shuffle,
+  repeat, queue, recently-played), `/playlists/{id}`, `/albums/{id}`,
+  `/artists/{id}`, `/artists/{id}/albums`, `/search`.
+- `/me/playlists` and `/me/albums` return 50 per page, newest/most recently
+  played first. Always load every page (`allPlaylists`, `allAlbums`).
 - Check https://developer.spotify.com/documentation/web-api/references/changes
   before relying on any endpoint not listed here.
 
@@ -243,8 +267,9 @@ lyricsRelay, doubleClick (play/queue). Volume is stored separately
 
 ### Keyboard shortcuts
 
-Space play/pause, L lyrics view, N next, P previous, / search, Esc closes
-the lyrics view. Ignored while typing in inputs.
+Space play/pause, L lyrics view, Q queue, N next, P previous, / search, Esc
+closes the lyrics view (or the queue). Ignored while typing in inputs. Media
+keys work through `mediaSession.ts`.
 
 ## Performance rules (learned the hard way)
 
@@ -261,6 +286,10 @@ JavaScript. Keep it smooth:
 ## Known gaps and ideas
 
 Not yet verified with a real account (ask Dylan to test after changes here):
+- Other-device mode: "Playing on ..." detection, remote controls, Play here,
+  and that opening the app no longer takes over playback.
+- Media keys: whether the silent anchor audio wins media-key routing over the
+  SDK iframe in Chrome/Edge on Windows.
 - `/me/library` save/unsave/contains parameter format (query string `uris`).
 - Shuffle/repeat timing right after starting a new context.
 - Floating mini player (Document Picture-in-Picture, Chrome 116+); its
@@ -270,7 +299,7 @@ Things Spotify doesn't allow (don't try): speed/pitch control, visuals that
 react to the real audio (stream is DRM-encrypted), Spotify's own
 recommendations, song lists of playlists he doesn't own.
 
-Possible next features: a queue panel (`GET /me/player/queue`), playlist
+Possible next features: playlist
 editing (`POST /playlists/{id}/items`), recently played history page, more
 background styles, lyrics font options, a "Mixes" section built from Last.fm.
 

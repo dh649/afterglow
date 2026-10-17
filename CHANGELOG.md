@@ -4,6 +4,28 @@ Every change to Afterglow, newest first, in plain language.
 
 ## October 16, 2026
 
+### Plays nicely with your other devices
+- Opening Afterglow no longer grabs your music from your phone or another
+  speaker. If something is playing elsewhere, it shows "Playing on (device)"
+  under the song.
+- While music plays on another device, Afterglow works as a remote: play,
+  pause, skip, seek, shuffle and repeat all control that device, and lyrics
+  still follow along.
+- Press "Play here" to move the music to your computer. Picking any song,
+  album or playlist in Afterglow also moves it here.
+
+### Media keys
+- The play/pause and skip keys on your keyboard now control Afterglow, and
+  the Windows (or Mac) media popup shows the song, artist and cover.
+
+### Queue
+- New queue panel shows the song playing now and everything coming up. Open
+  it with the queue button in the player bar or press Q.
+
+### Saved albums
+- Albums you've saved in Spotify now show up. The sidebar has a Playlists /
+  Albums switch, and Home has a "Your albums" row.
+
 ### All your playlists show up
 - Fixed playlists going missing. Spotify sends playlists 50 at a time, sorted
   by most recently played, and the app only loaded the first 50. It now loads

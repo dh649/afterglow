@@ -11,6 +11,7 @@ import { PlayerBar } from "./components/PlayerBar";
 import { NowPlaying } from "./components/NowPlaying";
 import { Toasts } from "./components/Toast";
 import { MiniPlayerPortal } from "./components/MiniPlayer";
+import { QueuePanel } from "./components/QueuePanel";
 import { Setup } from "./pages/Setup";
 import { Home } from "./pages/Home";
 import { SearchPage } from "./pages/Search";
@@ -52,6 +53,7 @@ function useTheme() {
 function Shell() {
   const route = useRoute();
   const [open, setOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
   const main = useRef<HTMLElement>(null);
   useTheme();
 
@@ -60,6 +62,8 @@ function Shell() {
 
   const toggleOpen = useCallback(() => setOpen((o) => !o), []);
   const close = useCallback(() => setOpen(false), []);
+  const toggleQueue = useCallback(() => setQueueOpen((o) => !o), []);
+  const closeQueue = useCallback(() => setQueueOpen(false), []);
 
   // Keyboard shortcuts, ignored while typing.
   useEffect(() => {
@@ -70,6 +74,8 @@ function Shell() {
         e.preventDefault();
         controls.toggle();
       } else if (e.key === "l" || e.key === "L") toggleOpen();
+      else if (e.key === "q" || e.key === "Q") toggleQueue();
+      else if (e.key === "Escape" && !open) setQueueOpen(false);
       else if (e.key === "n" || e.key === "N") controls.next();
       else if (e.key === "p" || e.key === "P") controls.prev();
       else if (e.key === "/") {
@@ -79,7 +85,7 @@ function Shell() {
     };
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
-  }, [toggleOpen]);
+  }, [toggleOpen, toggleQueue, open]);
 
   // Following a link from the now-playing view should close it.
   useEffect(close, [route.page, "id" in route ? route.id : "", close]);
@@ -87,7 +93,7 @@ function Shell() {
   return (
     <>
       <Background />
-      <div className={`shell${open ? " np-open" : ""}`}>
+      <div className={`shell${open ? " np-open" : ""}${queueOpen ? " queue-open" : ""}`}>
         <Sidebar route={route} />
         <main className="main glass" ref={main}>
           {route.page === "home" && <Home />}
@@ -98,7 +104,8 @@ function Shell() {
           {route.page === "artist" && <ArtistPage id={route.id} key={route.id} />}
           {route.page === "settings" && <SettingsPage />}
         </main>
-        <PlayerBar onOpen={toggleOpen} open={open} />
+        {queueOpen && <QueuePanel onClose={closeQueue} />}
+        <PlayerBar onOpen={toggleOpen} open={open} onQueue={toggleQueue} queueOpen={queueOpen} />
       </div>
       {open && <NowPlaying onClose={close} />}
       <Toasts />

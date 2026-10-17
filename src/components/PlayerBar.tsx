@@ -109,9 +109,30 @@ function Volume() {
   );
 }
 
-export function PlayerBar({ onOpen, open }: { onOpen: () => void; open: boolean }) {
+/** "Playing on Dylan's iPhone" when music is on another device. */
+export function DeviceNote({ withButton }: { withButton?: boolean }) {
+  const remote = useStore(player, (s) => s.remote);
+  const paused = useStore(player, (s) => s.paused);
+  if (!remote) return null;
+  return (
+    <span className="device-note">
+      <Icon name="device" size={13} />
+      <span>
+        {paused ? "Paused on" : "Playing on"} {remote.name}
+      </span>
+      {withButton && (
+        <button className="device-here" onClick={controls.playHere}>
+          Play here
+        </button>
+      )}
+    </span>
+  );
+}
+
+export function PlayerBar({ onOpen, open, onQueue, queueOpen }: { onOpen: () => void; open: boolean; onQueue: () => void; queueOpen: boolean }) {
   const track = useStore(player, (s) => s.track);
   const status = useStore(player, (s) => s.status);
+  const remote = useStore(player, (s) => !!s.remote);
 
   return (
     <footer className="player-bar glass">
@@ -128,11 +149,14 @@ export function PlayerBar({ onOpen, open }: { onOpen: () => void; open: boolean 
               <span className="pb-artists">
                 <Artists artists={track.artists} />
               </span>
+              <DeviceNote />
             </div>
             <LikeButton uri={track.uri} label="song" size={18} />
           </>
         ) : (
-          <span className="pb-empty">{status === "ready" ? "Pick something to play" : "Connecting to Spotify…"}</span>
+          <span className="pb-empty">
+            {remote ? <DeviceNote withButton /> : status === "ready" ? "Pick something to play" : "Connecting to Spotify…"}
+          </span>
         )}
       </div>
 
@@ -142,8 +166,16 @@ export function PlayerBar({ onOpen, open }: { onOpen: () => void; open: boolean 
       </div>
 
       <div className="pb-right">
+        {remote && track && (
+          <button className="pill-btn here-btn" onClick={controls.playHere} title="Move the music to this computer">
+            <Icon name="device" size={15} /> Play here
+          </button>
+        )}
         <button className={`icon-btn${open ? " on" : ""}`} onClick={onOpen} aria-label="Lyrics and now playing" title="Lyrics (L)">
           <Icon name="lyrics" size={18} />
+        </button>
+        <button className={`icon-btn${queueOpen ? " on" : ""}`} onClick={onQueue} aria-label="Queue" aria-pressed={queueOpen} title="Queue (Q)">
+          <Icon name="queue" size={18} />
         </button>
         <MiniPlayerButton />
         <Volume />

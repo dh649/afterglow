@@ -19,15 +19,18 @@ const paths = {
   back: "M15.4 4.6 8 12l7.4 7.4-1.4 1.4L5.2 12 14 3.2Z",
   forward: "M8.6 4.6 16 12l-7.4 7.4 1.4 1.4L18.8 12 10 3.2Z",
   close: "M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4L12 13.4 6.4 19 5 17.6 10.6 12 5 6.4Z",
+  device: "M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm5 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM12 11a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z",
   logout: "M10 3h9a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-9v-2h8V5h-8Zm-3.4 4.6L8 9l-2 2h8v2H6l2 2-1.4 1.4L2.2 12Z",
 } as const;
 
 export type IconName = keyof typeof paths;
 
+const evenOdd = new Set<IconName>(["settings", "device"]);
+
 export function Icon({ name, size = 20, className }: { name: IconName; size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
-      <path d={paths[name]} fillRule={name === "settings" ? "evenodd" : undefined} />
+      <path d={paths[name]} fillRule={evenOdd.has(name) ? "evenodd" : undefined} />
     </svg>
   );
 }

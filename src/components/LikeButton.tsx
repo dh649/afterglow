@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { spotify } from "../lib/spotify";
-import { invalidate } from "../lib/hooks";
+import { invalidate, library } from "../lib/hooks";
 import { Icon } from "./Icon";
 import { toast } from "./Toast";
 
@@ -29,6 +29,7 @@ export function LikeButton({ uri, label, follow, size = 20 }: { uri?: string; la
     try {
       await (next ? spotify.save([uri]) : spotify.unsave([uri]));
       if (label === "song") invalidate("liked");
+      if (label === "album") library.set((l) => ({ v: l.v + 1 }));
       toast(follow ? (next ? "Following" : "Unfollowed") : next ? `Saved ${label} to your library` : `Removed ${label} from your library`);
     } catch (e) {
       setSaved(!next);

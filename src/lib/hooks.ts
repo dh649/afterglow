@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { createStore } from "./store";
 
 /* ---------- Hash routing (works on GitHub Pages without server setup) ---------- */
 
@@ -86,6 +87,9 @@ export function useAsync<T>(key: string | null, fn: () => Promise<T>) {
   if (state.key !== key) return { data: undefined as T | undefined, error: undefined, loading: true };
   return state;
 }
+
+/** Bumped when your saved albums change, so lists showing them reload. */
+export const library = createStore({ v: 0 });
 
 export function invalidate(prefix: string) {
   for (const k of cache.keys()) if (k.startsWith(prefix)) cache.delete(k);

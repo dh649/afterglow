@@ -32,6 +32,17 @@ export interface Album extends AlbumRef { tracks: Paging<Omit<Track, "album">>; 
 export interface Paging<T> { items: T[]; next: string | null; total: number; offset?: number }
 export interface User { id: string; display_name: string; images?: Image[]; product?: string }
 export interface PlayHistory { track: Track; played_at: string; context: { uri: string; type: string } | null }
+export interface SavedAlbum { added_at: string; album: Album }
+/** What Spotify is doing right now, on whichever device is active. */
+export interface PlaybackState {
+  device: { id: string | null; name: string; type: string; is_active: boolean } | null;
+  is_playing: boolean;
+  progress_ms: number | null;
+  item: (Track & { type?: string }) | null;
+  shuffle_state: boolean;
+  repeat_state: "off" | "context" | "track";
+  context: { uri: string } | null;
+}
 
 /* ---------- Request helper ---------- */
 
@@ -137,14 +148,36 @@ export const spotify = {
   save: (uris: string[]) => api(`/me/library?uris=${encodeURIComponent(uris.join(","))}`, { method: "PUT" }),
   unsave: (uris: string[]) => api(`/me/library?uris=${encodeURIComponent(uris.join(","))}`, { method: "DELETE" }),
   queue: () => api<{ currently_playing: Track | null; queue: Track[] }>("/me/player/queue"),
+  /** Every album saved in your library, 50 at a time until done. */
+  allAlbums: async () => {
+    const first = await api<Paging<SavedAlbum | null>>("/me/albums?limit=50");
+    const all = [...first.items];
+    let next = first.next;
+    while (next) {
+      const page = await api<Paging<SavedAlbum | null>>(next);
+      all.push(...page.items);
+      next = page.next;
+    }
+    return all.filter((x): x is SavedAlbum => !!x?.album).map((x) => x.album);
+  },
+  /** Empty (undefined) when nothing is playing on any device. */
+  playbackState: () => api<PlaybackState | undefined>("/me/player"),
+  /** Controls for whichever device is active (used when that isn't this tab). */
+  remote: {
+    play: () => api("/me/player/play", { method: "PUT" }),
+    pause: () => api("/me/player/pause", { method: "PUT" }),
+    next: () => api("/me/player/next", { method: "POST" }),
+    previous: () => api("/me/player/previous", { method: "POST" }),
+    seek: (ms: number) => api(`/me/player/seek?position_ms=${Math.round(ms)}`, { method: "PUT" }),
+  },
   addToQueue: (uri: string, device?: string) =>
     api(`/me/player/queue?uri=${encodeURIComponent(uri)}${device ? `&device_id=${device}` : ""}`, { method: "POST" }),
   transfer: (device: string, play = false) =>
     api("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [device], play }) }),
   play: (device: string, body: Record<string, unknown>) =>
     api(`/me/player/play?device_id=${device}`, { method: "PUT", body: JSON.stringify(body) }),
-  shuffle: (device: string, on: boolean) =>
-    api(`/me/player/shuffle?state=${on}&device_id=${device}`, { method: "PUT" }),
-  repeat: (device: string, mode: "off" | "context" | "track") =>
-    api(`/me/player/repeat?state=${mode}&device_id=${device}`, { method: "PUT" }),
+  shuffle: (device: string | undefined, on: boolean) =>
+    api(`/me/player/shuffle?state=${on}${device ? `&device_id=${device}` : ""}`, { method: "PUT" }),
+  repeat: (device: string | undefined, mode: "off" | "context" | "track") =>
+    api(`/me/player/repeat?state=${mode}${device ? `&device_id=${device}` : ""}`, { method: "PUT" }),
 };

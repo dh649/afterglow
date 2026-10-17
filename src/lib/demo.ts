@@ -70,6 +70,7 @@ export async function demoFetch<T>(path: string, _init: RequestInit = {}): Promi
   } else if (p.startsWith("/me/top/artists")) out = page(artists);
   else if (p.startsWith("/me/top/tracks")) out = page([5, 11, 2, 7, 13, 0, 9, 4].map((i) => tracks[i]));
   else if (p.startsWith("/me/playlists")) out = page(playlists);
+  else if (p.startsWith("/me/albums")) out = page(albums.slice(1, 7).map((al, i) => ({ added_at: new Date(Date.now() - i * 8.64e7).toISOString(), album: { ...al, tracks: page([]) } })));
   else if (p.startsWith("/me/tracks")) out = page(tracks.map((t, i) => ({ added_at: new Date(Date.now() - i * 8.64e7).toISOString(), track: t })));
   else if (p.startsWith("/me/library/contains")) out = (new URLSearchParams(p.split("?")[1]).get("uris") ?? "").split(",").map((u) => u.endsWith("0") || u.endsWith("5"));
   else if (p.startsWith("/me/library")) out = undefined;
