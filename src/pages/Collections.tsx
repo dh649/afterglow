@@ -4,7 +4,7 @@ import { controls } from "../lib/player";
 import { pickImage, playlistCount, playlistTracks, spotify, type Paging, type Track } from "../lib/spotify";
 import { CollectionHeader, HeaderSkeleton, totalDuration } from "../components/CollectionHeader";
 import { TrackList, TrackListSkeleton } from "../components/TrackList";
-import { Shelf } from "../components/Shelf";
+import { Shelf, ShelfSkeleton } from "../components/Shelf";
 import { Tile } from "../components/Tile";
 import { LikeButton } from "../components/LikeButton";
 
@@ -126,11 +126,15 @@ export function AlbumPage({ id }: { id: string }) {
 export function ArtistPage({ id }: { id: string }) {
   const { data: a, error } = useAsync(`artist:${id}`, () => spotify.artist(id));
   const releases = useAsync(`artist-albums:${id}`, () => spotify.artistAlbums(id));
+  const songs = useAsync(a ? `artist-songs:${id}` : null, () => spotify.artistSongs(a!));
+  const [showAll, setShowAll] = useState(false);
   if (error) return <Failed what="artist" error={error} />;
-  if (!a) return <div className="page"><HeaderSkeleton /></div>;
+  if (!a) return <div className="page"><HeaderSkeleton /><TrackListSkeleton rows={5} /></div>;
 
   const albums = releases.data?.items.filter((r) => r.album_type !== "single") ?? [];
   const singles = releases.data?.items.filter((r) => r.album_type === "single") ?? [];
+  const popular = songs.data ?? [];
+  const shown = showAll ? popular : popular.slice(0, 5);
   return (
     <div className="page">
       <CollectionHeader
@@ -142,6 +146,21 @@ export function ArtistPage({ id }: { id: string }) {
         meta={a.genres?.length ? <span>{a.genres.slice(0, 3).join(", ")}</span> : undefined}
         onPlay={() => controls.playContext(a.uri)}
       />
+
+      {songs.loading && !songs.data && <TrackListSkeleton rows={5} />}
+      {popular.length > 0 && (
+        <section className="artist-popular">
+          <h2>Popular</h2>
+          <TrackList tracks={shown} onPlay={(i) => controls.playUris(popular.map((t) => t.uri), i)} />
+          {popular.length > 5 && (
+            <button className="text-btn" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Show less" : "Show more"}
+            </button>
+          )}
+        </section>
+      )}
+
+      {releases.loading && !releases.data && <ShelfSkeleton title="Albums" />}
       {albums.length > 0 && (
         <Shelf title="Albums">
           {albums.map((r) => (
@@ -155,6 +174,10 @@ export function ArtistPage({ id }: { id: string }) {
             <Tile key={r.id} title={r.name} subtitle={r.release_date?.slice(0, 4)} image={pickImage(r.images)} href={href.album(r.id)} onPlay={() => controls.playContext(r.uri)} />
           ))}
         </Shelf>
+      )}
+      {releases.error && <p className="inline-note">Couldn't load this artist's music: {releases.error.message}</p>}
+      {releases.data && !albums.length && !singles.length && !popular.length && (
+        <p className="inline-note">Spotify didn't send any music for this artist. Press play to hear them anyway.</p>
       )}
     </div>
   );

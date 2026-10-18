@@ -176,6 +176,12 @@ Spotify locked down Development Mode apps in Nov 2024 and again Feb/Mar 2026:
 - Spotify-owned and algorithmic playlists (Discover Weekly, Daily Mix,
   Release Radar) are not accessible. "For you" uses Last.fm instead.
 - Search `limit` max is 10 (default 5). Paginate with `offset` for more.
+- `GET /artists/{id}/albums` `limit` max is also 10 now (asking for more is
+  rejected). `artistAlbums()` fetches pages of 10 in parallel, up to 60.
+- Artist top tracks are gone; `artistSongs()` searches `artist:"Name"` (two
+  pages of 10), keeps tracks credited to that artist, and dedupes by title.
+  The artist page shows these as "Popular".
+- Assume any `limit` might now be 10 and check the endpoint's reference page.
 - Playlists: `tracks` was renamed to `items`, and each entry's `track` to
   `item`. `playlistTracks()` reads either. Song lists are only returned for
   playlists the user owns or collaborates on; followed playlists give metadata

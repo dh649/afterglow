@@ -83,7 +83,7 @@ export async function demoFetch<T>(path: string, _init: RequestInit = {}): Promi
   else if (p.startsWith("/artists/")) out = artists.find((x) => x.id === id) ?? artists[0];
   else if (p.startsWith("/search")) {
     const q = (new URLSearchParams(p.split("?")[1]).get("q") ?? "").toLowerCase();
-    const has = (s: string) => s.toLowerCase().includes(q.replace(/^(track|artist):/, ""));
+    const has = (s: string) => s.toLowerCase().includes(q.replace(/^(track|artist):/, "").replace(/"/g, ""));
     out = {
       tracks: page(tracks.filter((t) => has(t.name) || has(t.artists[0].name)).concat(tracks).slice(0, 10)),
       artists: page(artists.slice(0, 6)), albums: page(albums.slice(0, 8)), playlists: page(playlists.slice(0, 4)),

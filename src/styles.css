@@ -282,6 +282,9 @@ h1, h2, h3, p { margin: 0; }
 .search-box:focus-within { background: rgb(255 255 255 / 0.14); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25); }
 .search-box input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--ink); font: 500 17px var(--font); }
 .search-songs { margin-bottom: 34px; }
+.artist-popular { margin-bottom: 34px; }
+.artist-popular h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+.artist-popular .text-btn { margin: 8px 10px 0; font-weight: 600; }
 .search-songs h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
 .empty { color: var(--muted); font-size: 17px; }
 .inline-note { color: var(--muted); padding: 14px 16px; border-radius: 10px; background: rgb(255 255 255 / 0.05); max-width: 680px; margin-bottom: 24px; }

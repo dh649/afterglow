@@ -130,8 +130,40 @@ export const spotify = {
   page: <T>(url: string) => api<Paging<T>>(url),
   album: (id: string) => api<Album>(`/albums/${id}`),
   artist: (id: string) => api<Artist>(`/artists/${id}`),
-  artistAlbums: (id: string) =>
-    api<Paging<AlbumRef>>(`/artists/${id}/albums?include_groups=album,single&limit=40`),
+  /**
+   * An artist's albums and singles. Spotify now sends at most 10 per request
+   * (asking for more is rejected), so fetch pages of 10 side by side.
+   */
+  artistAlbums: async (id: string, max = 60) => {
+    const url = (offset: number) => `/artists/${id}/albums?include_groups=album,single&limit=10&offset=${offset}`;
+    const first = await api<Paging<AlbumRef | null>>(url(0));
+    const offsets: number[] = [];
+    for (let o = 10; o < Math.min(first.total, max); o += 10) offsets.push(o);
+    const rest = await Promise.all(offsets.map((o) => api<Paging<AlbumRef | null>>(url(o)).catch(() => null)));
+    const items = [first, ...rest].flatMap((p) => p?.items ?? []).filter((x): x is AlbumRef => !!x);
+    return { ...first, items, next: null } as Paging<AlbumRef>;
+  },
+  /**
+   * Stand-in for "Popular songs": Spotify removed artist top tracks for apps
+   * like this, but search results for an artist come back roughly by popularity.
+   */
+  artistSongs: async (artist: Pick<Artist, "id" | "name">) => {
+    const q = encodeURIComponent(`artist:"${artist.name}"`);
+    const pages = await Promise.all(
+      [0, 10].map((o) => api<{ tracks?: Paging<Track | null> }>(`/search?q=${q}&type=track&limit=10&offset=${o}`).catch(() => null)),
+    );
+    const seen = new Set<string>();
+    return pages
+      .flatMap((p) => p?.tracks?.items ?? [])
+      .filter((t): t is Track => !!t && t.artists.some((a) => a.id === artist.id))
+      .filter((t) => {
+        const key = t.name.toLowerCase().replace(/\s*[-(].*$/, "");
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 10);
+  },
   search: (q: string) =>
     api<{
       tracks?: Paging<Track>;

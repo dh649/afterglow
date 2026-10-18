@@ -2,6 +2,16 @@
 
 Every change to Afterglow, newest first, in plain language.
 
+## October 17, 2026
+
+### Artist pages fixed
+- Artist pages showed up empty. Spotify now only hands out an artist's
+  releases 10 at a time and was rejecting the app's request for 40. The app
+  now asks in batches of 10 (up to 60 releases).
+- Added a "Popular" section with an artist's top songs. Spotify removed its
+  own top-songs list for apps like this, so these come from searching the
+  artist, which returns their biggest songs first.
+
 ## October 16, 2026
 
 ### Plays nicely with your other devices
