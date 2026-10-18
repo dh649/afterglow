@@ -55,7 +55,8 @@ export function Home() {
   const recent = useAsync("recent", spotify.recentlyPlayed);
   const topTracks = useAsync("top:tracks", () => spotify.top("tracks", "short_term", 20));
   const topArtists = useAsync("top:artists", () => spotify.top("artists", "medium_term", 20));
-  const playlists = useAsync("playlists", spotify.allPlaylists);
+  const playlistsV = useStore(library, (l) => l.p);
+  const playlists = useAsync(`playlists:${playlistsV}`, spotify.allPlaylists);
   const libraryV = useStore(library, (l) => l.v);
   const albums = useAsync(`albums:${libraryV}`, spotify.allAlbums);
   const lastfmKey = useStore(settings, (s) => s.lastfmKey);

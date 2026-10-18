@@ -69,12 +69,18 @@ export async function demoFetch<T>(path: string, _init: RequestInit = {}): Promi
     })));
   } else if (p.startsWith("/me/top/artists")) out = page(artists);
   else if (p.startsWith("/me/top/tracks")) out = page([5, 11, 2, 7, 13, 0, 9, 4].map((i) => tracks[i]));
-  else if (p.startsWith("/me/playlists")) out = page(playlists);
+  else if (p.startsWith("/me/playlists") && _init.method === "POST") {
+    const name = JSON.parse(String(_init.body ?? "{}")).name ?? "New playlist";
+    const made: Playlist = { id: `pl${playlists.length}`, uri: `spotify:playlist:pl${playlists.length}`, name, images: [], owner: { id: "demo", display_name: "You" }, items: { items: [], next: null, total: 0 } };
+    playlists.unshift(made);
+    out = made;
+  } else if (p.startsWith("/me/playlists")) out = page(playlists);
   else if (p.startsWith("/me/albums")) out = page(albums.slice(1, 7).map((al, i) => ({ added_at: new Date(Date.now() - i * 8.64e7).toISOString(), album: { ...al, tracks: page([]) } })));
   else if (p.startsWith("/me/tracks")) out = page(tracks.map((t, i) => ({ added_at: new Date(Date.now() - i * 8.64e7).toISOString(), track: t })));
   else if (p.startsWith("/me/library/contains")) out = (new URLSearchParams(p.split("?")[1]).get("uris") ?? "").split(",").map((u) => u.endsWith("0") || u.endsWith("5"));
   else if (p.startsWith("/me/library")) out = undefined;
   else if (p === "/me") out = { id: "demo", display_name: "Dylan", product: "premium" };
+  else if (p.match(/^\/playlists\/[^/]+\/items/) && _init.method) out = { snapshot_id: "demo" };
   else if (p.startsWith("/playlists/")) out = playlists.find((x) => x.id === id) ?? playlists[0];
   else if (p.startsWith("/albums/")) {
     const al = albums.find((x) => x.id === id) ?? albums[0];

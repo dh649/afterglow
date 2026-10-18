@@ -6,6 +6,7 @@ import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
 import { Artists } from "./TrackList";
 import { MiniPlayerButton } from "./MiniPlayer";
+import { addToPlaylist } from "./AddToPlaylist";
 
 /** Seek bar. Re-renders every frame only while music is playing. */
 export function Timeline({ compact }: { compact?: boolean }) {
@@ -152,6 +153,9 @@ export function PlayerBar({ onOpen, open, onQueue, queueOpen }: { onOpen: () => 
               <DeviceNote />
             </div>
             <LikeButton uri={track.uri} label="song" size={18} />
+            <button className="icon-btn" onClick={() => addToPlaylist([track.uri], track.name)} aria-label="Add this song to a playlist" title="Add to playlist">
+              <Icon name="plus" size={18} />
+            </button>
           </>
         ) : (
           <span className="pb-empty">

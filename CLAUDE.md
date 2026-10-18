@@ -106,6 +106,7 @@ minimal: react, react-dom, and build tools only.
     src/components/CollectionHeader.tsx Playlist/album/artist header with color glow
     src/components/LikeButton.tsx      Save/unsave via /me/library
     src/components/Toast.tsx           Toasts + player error banner
+    src/components/AddToPlaylist.tsx   Add-to-playlist / new-playlist dialog (addToPlaylist(), newPlaylist())
     src/components/Icon.tsx            Inline SVG icon set
 
     src/pages/Home.tsx          Greeting, jump back in, For you, recently played,
@@ -114,6 +115,8 @@ minimal: react, react-dom, and build tools only.
     src/pages/Search.tsx        Search (songs, artists, albums, playlists)
     src/pages/Settings.tsx      All settings
     src/pages/Setup.tsx         First run: paste Client ID, log in
+
+    tools/afterglow-quick-menu.ahk  Windows AutoHotkey v2 helper: Caps Lock + Tab game overlay
 
 ## How it works
 
@@ -124,6 +127,10 @@ Spotify developer dashboard and pastes its Client ID on first run (stored in
 localStorage as `afterglow.clientId`). Tokens live in localStorage
 (`afterglow.token`) and refresh automatically. `redirectUri()` is
 `location.origin + location.pathname`. Scopes are listed in `SCOPES`.
+The granted `scope` string is saved with the token; `hasPermission()` /
+`canEditPlaylists()` read it. Adding a scope means existing logins lack it, so
+gate the feature and offer `login()` to reconnect (see AddToPlaylist.tsx and
+Settings > Account). Logins from before scopes were saved count as missing.
 
 ### Routing (src/lib/hooks.ts)
 
@@ -198,6 +205,12 @@ Spotify locked down Development Mode apps in Nov 2024 and again Feb/Mar 2026:
   `/artists/{id}`, `/artists/{id}/albums`, `/search`.
 - `/me/playlists` and `/me/albums` return 50 per page, newest/most recently
   played first. Always load every page (`allPlaylists`, `allAlbums`).
+- Playlist editing (scopes `playlist-modify-public` + `-private`):
+  `POST /playlists/{id}/items` body `{ uris }` (max 100), `DELETE
+  /playlists/{id}/items` body `{ items: [{ uri }] }` (removes every copy),
+  `POST /me/playlists` body `{ name, public: false }`. Only playlists owned by
+  `/me` or `collaborative` are offered. After changes call `bumpPlaylists()`
+  (hooks.ts `library.p`), which the sidebar, Home and playlist page keys use.
 - Check https://developer.spotify.com/documentation/web-api/references/changes
   before relying on any endpoint not listed here.
 
@@ -259,7 +272,9 @@ day in localStorage (`afterglow.foryou`). Without a key, Home shows a nudge.
 - Glass panels: `--panel` uses `--glass` opacity + backdrop blur. Radius
   hierarchy: panels 18px, covers 8px, pills fully round.
 - Font: Schibsted Grotesk. Base `#07080c`, ink `#f4f2f7`.
-- The tab icon swaps to the current album art; the title shows the song.
+- The tab icon swaps to the current album art. The title is
+  `Song · Artist | Afterglow` (prefixed `Paused: ` when paused) or `Afterglow`.
+  Keep that exact format: the game quick menu parses it with a regex.
 - Responsive down to phone width (sidebar becomes a top bar).
 - Respects `prefers-reduced-motion`; visible focus rings; keyboard usable.
 - Copy style: plain, sentence case, no all-caps labels, errors say what to do.
@@ -292,6 +307,9 @@ JavaScript. Keep it smooth:
 ## Known gaps and ideas
 
 Not yet verified with a real account (ask Dylan to test after changes here):
+- Playlist editing end to end, including the reconnect flow for the new scopes.
+- The AutoHotkey quick menu (written without a Windows machine to run it).
+  It controls playback with media keys, so it depends on media keys working.
 - Other-device mode: "Playing on ..." detection, remote controls, Play here,
   and that opening the app no longer takes over playback.
 - Media keys: whether the silent anchor audio wins media-key routing over the
@@ -305,8 +323,8 @@ Things Spotify doesn't allow (don't try): speed/pitch control, visuals that
 react to the real audio (stream is DRM-encrypted), Spotify's own
 recommendations, song lists of playlists he doesn't own.
 
-Possible next features: playlist
-editing (`POST /playlists/{id}/items`), recently played history page, more
+Possible next features: playlist renaming and reordering, recently played
+history page, more
 background styles, lyrics font options, a "Mixes" section built from Last.fm.
 
 ## Background: why not just clone Liner?

@@ -22,12 +22,16 @@ const SCOPES = [
   "user-library-modify",
   "playlist-read-private",
   "playlist-read-collaborative",
+  "playlist-modify-public",
+  "playlist-modify-private",
 ].join(" ");
 
 interface Token {
   access: string;
   refresh: string;
   expiresAt: number;
+  /** Permissions Spotify granted, space-separated. Missing on logins from older versions. */
+  scope?: string;
 }
 
 export const isDemo = new URLSearchParams(location.search).has("demo");
@@ -78,11 +82,12 @@ export function logout() {
   auth.set({ loggedIn: false });
 }
 
-function saveToken(json: { access_token: string; refresh_token?: string; expires_in: number }, prevRefresh = "") {
+function saveToken(json: { access_token: string; refresh_token?: string; expires_in: number; scope?: string }, prevRefresh = "", prevScope?: string) {
   const t: Token = {
     access: json.access_token,
     refresh: json.refresh_token ?? prevRefresh,
     expiresAt: Date.now() + (json.expires_in - 60) * 1000,
+    scope: json.scope ?? prevScope,
   };
   localStorage.setItem(TOKEN_KEY, JSON.stringify(t));
   return t;
@@ -139,7 +144,7 @@ export async function getAccessToken(force = false): Promise<string> {
     refresh_token: t.refresh,
     client_id: auth.get().clientId,
   })
-    .then((json) => saveToken(json, t.refresh))
+    .then((json) => saveToken(json, t.refresh, t.scope))
     .catch((e) => {
       logout();
       auth.set({ error: "Your Spotify session ended. Log in again." });
@@ -148,3 +153,19 @@ export async function getAccessToken(force = false): Promise<string> {
     .finally(() => (refreshing = null));
   return (await refreshing).access;
 }
+
+/**
+ * True when the current login allows something (for example editing
+ * playlists). Logins from before a permission was added need a reconnect.
+ */
+export function hasPermission(scope: string): boolean {
+  if (isDemo) return true;
+  try {
+    const t = JSON.parse(localStorage.getItem(TOKEN_KEY) ?? "null") as Token | null;
+    return !!t?.scope?.split(" ").includes(scope);
+  } catch {
+    return false;
+  }
+}
+
+export const canEditPlaylists = () => hasPermission("playlist-modify-private") && hasPermission("playlist-modify-public");

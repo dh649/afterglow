@@ -121,6 +121,8 @@ h1, h2, h3, p { margin: 0; }
 .nav-tabs button { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); background: rgb(255 255 255 / 0.07); }
 .nav-tabs button:hover { color: var(--ink); background: rgb(255 255 255 / 0.12); }
 .nav-tabs button.on { background: var(--ink); color: var(--base); }
+.nav-tabs { align-items: center; }
+.nav-new { margin-left: auto; width: 30px; height: 30px; }
 .nav-playlists { flex: 1; overflow-y: auto; margin: 0 -4px 10px; padding: 0 4px; min-height: 0; }
 .nav-playlist { display: flex; align-items: center; gap: 10px; padding: 5px 6px; border-radius: 8px; color: var(--muted); }
 .nav-playlist:hover { background: var(--hover); color: var(--ink); text-decoration: none; }
@@ -158,6 +160,8 @@ h1, h2, h3, p { margin: 0; }
 .pill-btn:hover:not(:disabled) { background: rgb(255 255 255 / 0.16); }
 .pill-btn.on { background: transparent; box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
 .pill-btn.ghost { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.pill-btn.accent { background: var(--accent); color: #0b0a10; }
+.pill-btn.accent:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 85%, white); }
 .text-btn { color: var(--muted); font-size: 14px; margin-top: 12px; }
 .text-btn:hover { color: var(--ink); text-decoration: underline; }
 
@@ -244,10 +248,10 @@ h1, h2, h3, p { margin: 0; }
 /* ============ Track list ============ */
 .tracks { list-style: none; margin: 0; padding: 0; }
 .track {
-  display: grid; grid-template-columns: 40px minmax(0, 1.4fr) minmax(0, 1fr) 96px; align-items: center; gap: 14px;
+  display: grid; grid-template-columns: 40px minmax(0, 1.4fr) minmax(0, 1fr) auto; align-items: center; gap: 14px;
   padding: 6px 10px; border-radius: 8px; cursor: default; outline-offset: -2px;
 }
-.tracks.no-album .track { grid-template-columns: 40px minmax(0, 1fr) 96px; }
+.tracks.no-album .track { grid-template-columns: 40px minmax(0, 1fr) auto; }
 .track:hover, .track:focus-within { background: var(--hover); }
 .track-num { display: grid; place-items: center; color: var(--faint); font-variant-numeric: tabular-nums; position: relative; height: 40px; }
 .track-play { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; color: var(--ink); }
@@ -259,8 +263,9 @@ h1, h2, h3, p { margin: 0; }
 .track-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .track.playing .track-name { color: var(--accent); }
 .track-artists, .track-album { color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.track-end { display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: var(--faint); font-size: 14px; font-variant-numeric: tabular-nums; }
+.track-end { display: flex; align-items: center; justify-content: flex-end; gap: 2px; color: var(--faint); font-size: 14px; font-variant-numeric: tabular-nums; }
 .track-queue { opacity: 0; width: 30px; height: 30px; }
+.track-time { min-width: 40px; text-align: right; margin-left: 6px; }
 .track:hover .track-queue, .track-queue:focus-visible { opacity: 1; }
 .explicit {
   display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: 8px; border-radius: 3px;
@@ -364,6 +369,8 @@ input[type="range"]:disabled { cursor: default; opacity: 0.4; }
 .np-titles { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .np-titles h1 { font-size: clamp(24px, 2.4vw, 34px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
 .np-titles p { color: var(--muted); margin-top: 6px; font-size: 16px; }
+.np-actions { display: flex; gap: 2px; flex: none; }
+.np-actions .icon-btn { width: 40px; height: 40px; }
 .np-album { color: var(--faint); }
 .np-left .timeline { max-width: none; }
 .np-next { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
@@ -486,6 +493,36 @@ button.lyric:hover { opacity: 1 !important; }
 .setup input { width: 100%; }
 .hint { color: var(--faint); font-size: 13px; margin-top: 16px; }
 .setup-error { color: #ffb4b4; margin-top: 14px; font-size: 14px; }
+
+/* ============ Dialog (add to playlist) ============ */
+.dialog-backdrop {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px;
+  background: rgb(4 5 8 / 0.55); animation: fade-in 0.15s ease-out;
+}
+@keyframes fade-in { from { opacity: 0; } }
+.dialog {
+  width: min(440px, 100%); max-height: min(620px, 100%); display: flex; flex-direction: column;
+  padding: 18px 16px 14px; background: rgb(18 19 28 / 0.96); box-shadow: 0 30px 80px rgb(0 0 0 / 0.5);
+  animation: dialog-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0 4px 12px; }
+.dialog-head h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.dialog-sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.dialog-tools { display: flex; gap: 8px; padding: 0 4px 10px; }
+.dialog-tools input, .dialog-create input {
+  flex: 1; min-width: 0; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: rgb(0 0 0 / 0.25); color: var(--ink); font: 500 14px var(--font); outline: none;
+}
+.dialog-tools input:focus, .dialog-create input:focus { border-color: var(--accent); }
+.dialog-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 0; }
+.dialog-pick { width: 100%; display: flex; align-items: center; gap: 12px; padding: 7px 6px; border-radius: 8px; text-align: left; }
+.dialog-pick:hover:not(:disabled), .dialog-pick:focus-visible { background: var(--hover); }
+.dialog-pick img, .dialog-pick .cover-blank { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex: none; }
+.dialog-create { display: flex; flex-direction: column; gap: 12px; padding: 0 4px 4px; }
+.dialog-create input { flex: none; height: 44px; font-size: 16px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.dialog-reconnect { display: flex; flex-direction: column; gap: 16px; padding: 4px 4px 6px; color: var(--muted); }
 
 /* ============ Toasts ============ */
 .toasts { position: fixed; left: 50%; bottom: 112px; transform: translateX(-50%); z-index: 40; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }

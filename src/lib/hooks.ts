@@ -88,8 +88,12 @@ export function useAsync<T>(key: string | null, fn: () => Promise<T>) {
   return state;
 }
 
-/** Bumped when your saved albums change, so lists showing them reload. */
-export const library = createStore({ v: 0 });
+/**
+ * Bumped when your library changes, so lists showing it reload.
+ * v: saved albums. p: playlists (added, created, or songs changed).
+ */
+export const library = createStore({ v: 0, p: 0 });
+export const bumpPlaylists = () => library.set((l) => ({ p: l.p + 1 }));
 
 export function invalidate(prefix: string) {
   for (const k of cache.keys()) if (k.startsWith(prefix)) cache.delete(k);

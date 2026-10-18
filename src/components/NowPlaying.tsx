@@ -5,6 +5,7 @@ import { href } from "../lib/hooks";
 import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
 import { Lyrics } from "./Lyrics";
+import { addToPlaylist } from "./AddToPlaylist";
 import { Artists } from "./TrackList";
 import { DeviceNote, Timeline, Transport } from "./PlayerBar";
 
@@ -44,7 +45,12 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
                   </span>
                 </p>
               </div>
-              <LikeButton uri={track.uri} label="song" size={24} />
+              <span className="np-actions">
+                <LikeButton uri={track.uri} label="song" size={24} />
+                <button className="icon-btn" onClick={() => addToPlaylist([track.uri], track.name)} aria-label="Add this song to a playlist" title="Add to playlist">
+                  <Icon name="plus" size={24} />
+                </button>
+              </span>
             </div>
             <DeviceNote withButton />
             <Timeline />

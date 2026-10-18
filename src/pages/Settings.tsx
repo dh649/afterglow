@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { defaults, downscaleImage, settings, type Settings } from "../lib/settings";
 import { useStore } from "../lib/store";
-import { auth, isDemo, logout } from "../lib/auth";
+import { auth, canEditPlaylists, isDemo, login, logout } from "../lib/auth";
 import { useAsync } from "../lib/hooks";
 import { spotify } from "../lib/spotify";
 import { invalidate } from "../lib/hooks";
@@ -207,6 +207,13 @@ export function SettingsPage() {
             </button>
           )}
         </Row>
+        {!isDemo && !canEditPlaylists() && (
+          <Row label="Playlist editing is off" hint="Reconnect once so Afterglow can add and remove songs in your playlists. Changes show up in Spotify too.">
+            <button className="pill-btn accent" onClick={login}>
+              Reconnect Spotify
+            </button>
+          </Row>
+        )}
       </section>
 
       <button className="pill-btn ghost reset" onClick={() => settings.set({ ...defaults, lastfmKey: s.lastfmKey, lyricsRelay: s.lyricsRelay })}>

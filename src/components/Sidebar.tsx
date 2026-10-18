@@ -5,6 +5,7 @@ import { player } from "../lib/player";
 import { useStore } from "../lib/store";
 import { Icon, type IconName } from "./Icon";
 import { Equalizer } from "./TrackList";
+import { newPlaylist } from "./AddToPlaylist";
 
 function NavLink({ to, icon, label, active }: { to: string; icon: IconName; label: string; active: boolean }) {
   return (
@@ -42,7 +43,8 @@ function Item({ to, image, name, sub, active, playing }: { to: string; image?: s
 export function Sidebar({ route }: { route: Route }) {
   const [tab, setTab] = useState<Tab>(readTab);
   const libraryV = useStore(library, (l) => l.v);
-  const playlists = useAsync("playlists", spotify.allPlaylists);
+  const playlistsV = useStore(library, (l) => l.p);
+  const playlists = useAsync(`playlists:${playlistsV}`, spotify.allPlaylists);
   const albums = useAsync(tab === "albums" ? `albums:${libraryV}` : null, spotify.allAlbums);
   const contextUri = useStore(player, (s) => s.contextUri);
   const paused = useStore(player, (s) => s.paused);
@@ -74,6 +76,9 @@ export function Sidebar({ route }: { route: Route }) {
             {t === "playlists" ? "Playlists" : "Albums"}
           </button>
         ))}
+        <button className="icon-btn nav-new" onClick={newPlaylist} aria-label="New playlist" title="New playlist">
+          <Icon name="plus" size={18} />
+        </button>
       </div>
       <div className="nav-playlists" role="tabpanel">
         {tab === "playlists" &&

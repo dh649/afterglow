@@ -16,6 +16,24 @@ A custom Spotify player with album-art backgrounds, synced lyrics, and a floatin
 To install it like a desktop app, click the install icon at the right of Chrome's
 address bar (or menu > Cast, save and share > Install page as app).
 
+## Game quick menu (Caps Lock + Tab, Windows)
+
+A mini player that pops up over games. Browsers can't hear your keyboard while
+a game is in front, so this is a tiny separate helper made with AutoHotkey.
+
+1. Install AutoHotkey v2 (free) from autohotkey.com. Pick "Download v2.0".
+2. Download `tools/afterglow-quick-menu.ahk` from this repo and double-click it.
+   A green "H" icon appears near the clock.
+3. Have Afterglow open, installed as an app (so it has its own window).
+4. In a game, press Caps Lock + Tab. Use Space, arrow keys (or WASD), and Esc.
+
+To start it with Windows: press Win+R, type `shell:startup`, press Enter, and
+put a shortcut to the script in that folder.
+
+If it doesn't show over a game, set the game's display mode to "Borderless" or
+"Windowed fullscreen". If the game runs as administrator, right-click the
+script and choose "Run as administrator".
+
 ## Optional: your own lyrics relay
 
 Lyrics come from LRCLIB. Its exact lookup works directly, but its search only

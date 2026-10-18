@@ -12,6 +12,7 @@ import { NowPlaying } from "./components/NowPlaying";
 import { Toasts } from "./components/Toast";
 import { MiniPlayerPortal } from "./components/MiniPlayer";
 import { QueuePanel } from "./components/QueuePanel";
+import { AddToPlaylistDialog } from "./components/AddToPlaylist";
 import { Setup } from "./pages/Setup";
 import { Home } from "./pages/Home";
 import { SearchPage } from "./pages/Search";
@@ -44,7 +45,10 @@ function useTheme() {
     if (link) link.href = small ?? "./icon.svg";
   }, [small]);
 
-  const title = useStore(player, (s) => (s.track && !s.paused ? `${s.track.name} · ${s.track.artists[0]?.name}` : "Afterglow"));
+  // Format matters: the Caps Lock + Tab game menu (tools/afterglow-quick-menu.ahk) reads it.
+  const title = useStore(player, (s) =>
+    s.track ? `${s.paused ? "Paused: " : ""}${s.track.name} · ${s.track.artists.map((a) => a.name).join(", ")} | Afterglow` : "Afterglow",
+  );
   useEffect(() => {
     document.title = title;
   }, [title]);
@@ -108,6 +112,7 @@ function Shell() {
         <PlayerBar onOpen={toggleOpen} open={open} onQueue={toggleQueue} queueOpen={queueOpen} />
       </div>
       {open && <NowPlaying onClose={close} />}
+      <AddToPlaylistDialog />
       <Toasts />
       <MiniPlayerPortal />
     </>

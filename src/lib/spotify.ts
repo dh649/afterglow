@@ -23,6 +23,7 @@ export interface Playlist {
   description?: string;
   images: Image[] | null;
   owner: { id: string; display_name?: string };
+  collaborative?: boolean;
   /** Spotify renamed `tracks` to `items` in 2026; we read either. */
   items?: Paging<{ item?: Track | null; track?: Track | null }> | { total?: number; href?: string };
   tracks?: Paging<{ item?: Track | null; track?: Track | null }> | { total?: number; href?: string };
@@ -192,6 +193,17 @@ export const spotify = {
     }
     return all.filter((x): x is SavedAlbum => !!x?.album).map((x) => x.album);
   },
+  /** Adds songs to the end of one of your playlists (100 at a time max). */
+  addToPlaylist: (id: string, uris: string[]) =>
+    api<{ snapshot_id: string }>(`/playlists/${id}/items`, { method: "POST", body: JSON.stringify({ uris: uris.slice(0, 100) }) }),
+  /** Removes songs from one of your playlists (every copy of each song). */
+  removeFromPlaylist: (id: string, uris: string[]) =>
+    api<{ snapshot_id: string }>(`/playlists/${id}/items`, {
+      method: "DELETE",
+      body: JSON.stringify({ items: uris.slice(0, 100).map((uri) => ({ uri })) }),
+    }),
+  createPlaylist: (name: string) =>
+    api<Playlist>("/me/playlists", { method: "POST", body: JSON.stringify({ name, public: false }) }),
   /** Empty (undefined) when nothing is playing on any device. */
   playbackState: () => api<PlaybackState | undefined>("/me/player"),
   /** Controls for whichever device is active (used when that isn't this tab). */

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { useAsync, href } from "../lib/hooks";
+import { useAsync, href, invalidate, library } from "../lib/hooks";
+import { useStore } from "../lib/store";
+import { toast } from "../components/Toast";
 import { controls } from "../lib/player";
 import { pickImage, playlistCount, playlistTracks, spotify, type Paging, type Track } from "../lib/spotify";
 import { CollectionHeader, HeaderSkeleton, totalDuration } from "../components/CollectionHeader";
@@ -26,7 +28,10 @@ const shuffleOn = async (play: () => unknown) => {
 /* ---------- Playlist ---------- */
 
 export function PlaylistPage({ id }: { id: string }) {
-  const { data: p, error } = useAsync(`playlist:${id}`, () => spotify.playlist(id));
+  const version = useStore(library, (l) => l.p);
+  const { data: p, error } = useAsync(`playlist:${id}:${version}`, () => spotify.playlist(id));
+  const me = useAsync("me", spotify.me).data;
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [more, setMore] = useState<Track[]>([]);
   const first = p ? playlistTracks(p) : null;
 
@@ -53,7 +58,25 @@ export function PlaylistPage({ id }: { id: string }) {
   if (error) return <Failed what="playlist" error={error} />;
   if (!p) return <div className="page"><HeaderSkeleton /><TrackListSkeleton /></div>;
 
-  const tracks = first ? [...first, ...more] : null;
+  const tracks = first ? [...first, ...more].filter((t) => !removed.has(t.uri)) : null;
+  const yours = !!me && (p.owner.id === me.id || !!p.collaborative);
+
+  const remove = async (t: Track) => {
+    setRemoved((r) => new Set(r).add(t.uri));
+    try {
+      await spotify.removeFromPlaylist(p.id, [t.uri]);
+      invalidate("playlists");
+      toast(`Removed "${t.name}" from ${p.name}`);
+    } catch (e) {
+      setRemoved((r) => {
+        const next = new Set(r);
+        next.delete(t.uri);
+        return next;
+      });
+      const err = e as Error;
+      toast(/scope|permission/i.test(err.message) ? "Reconnect Spotify to edit playlists: use + on any song." : `Couldn't remove it: ${err.message}`);
+    }
+  };
   const count = playlistCount(p) ?? tracks?.length;
   return (
     <div className="page">
@@ -74,7 +97,11 @@ export function PlaylistPage({ id }: { id: string }) {
         onShuffle={() => shuffleOn(() => controls.playContext(p.uri))}
       />
       {tracks ? (
-        <TrackList tracks={tracks} onPlay={(i) => controls.playContext(p.uri, { uri: tracks[i].uri })} />
+        <TrackList
+          tracks={tracks}
+          onPlay={(i) => controls.playContext(p.uri, { uri: tracks[i].uri })}
+          onRemove={yours ? (t) => void remove(t) : undefined}
+        />
       ) : (
         <p className="inline-note">
           Spotify only shares the song list for playlists you made or collaborate on. Press play and it'll still play here.

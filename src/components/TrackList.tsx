@@ -6,6 +6,7 @@ import { formatTime, href } from "../lib/hooks";
 import { pickImage, type ArtistRef, type Track } from "../lib/spotify";
 import { Icon } from "./Icon";
 import { toast } from "./Toast";
+import { addToPlaylist } from "./AddToPlaylist";
 
 export function Artists({ artists }: { artists: Pick<ArtistRef, "id" | "name">[] }) {
   return (
@@ -35,11 +36,13 @@ export function Equalizer() {
 interface Props {
   tracks: Track[];
   onPlay: (index: number) => void;
+  /** Shown on playlists you own: removes the song from that playlist on Spotify. */
+  onRemove?: (track: Track, index: number) => void;
   showCover?: boolean;
   showAlbum?: boolean;
 }
 
-export function TrackList({ tracks, onPlay, showCover = true, showAlbum = true }: Props) {
+export function TrackList({ tracks, onPlay, onRemove, showCover = true, showAlbum = true }: Props) {
   const current = useStore(player, (s) => s.track?.id);
   const paused = useStore(player, (s) => s.paused);
   const dbl = useStore(settings, (s) => s.doubleClick);
@@ -85,9 +88,17 @@ export function TrackList({ tracks, onPlay, showCover = true, showAlbum = true }
               </a>
             )}
             <span className="track-end">
+              <button className="icon-btn track-queue" onClick={() => addToPlaylist([t.uri], t.name)} aria-label={`Add ${t.name} to a playlist`} title="Add to playlist">
+                <Icon name="plus" size={16} />
+              </button>
               <button className="icon-btn track-queue" onClick={() => queue(t)} aria-label={`Add ${t.name} to queue`} title="Add to queue">
                 <Icon name="queue" size={16} />
               </button>
+              {onRemove && (
+                <button className="icon-btn track-queue" onClick={() => onRemove(t, i)} aria-label={`Remove ${t.name} from this playlist`} title="Remove from this playlist">
+                  <Icon name="close" size={15} />
+                </button>
+              )}
               <span className="track-time">{formatTime(t.duration_ms)}</span>
             </span>
           </li>

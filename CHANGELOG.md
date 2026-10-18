@@ -4,6 +4,23 @@ Every change to Afterglow, newest first, in plain language.
 
 ## October 17, 2026
 
+### Edit playlists, saved to Spotify
+- Add any song to a playlist with the new + button: on every song row, in the
+  player bar, and in the lyrics view. It saves to Spotify, so it shows up in
+  the Spotify app too.
+- Make a new playlist from the + next to Playlists in the sidebar, or while
+  adding a song.
+- On your own playlists, hover a song and click the x to remove it.
+- Afterglow needs one extra permission for this. The first time, it asks you
+  to reconnect Spotify (there's also a button in Settings).
+
+### Game quick menu
+- New Caps Lock + Tab mini player that shows over games, with the song,
+  play/pause, skip and volume, all usable from the keyboard. It's a small
+  Windows helper (see "Game quick menu" in the README).
+- The window title now always shows the song (and "Paused:" when paused) so
+  the quick menu can read it.
+
 ### Artist pages fixed
 - Artist pages showed up empty. Spotify now only hands out an artist's
   releases 10 at a time and was rejecting the app's request for 40. The app
