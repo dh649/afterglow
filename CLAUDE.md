@@ -107,6 +107,7 @@ minimal: react, react-dom, and build tools only.
     src/components/LikeButton.tsx      Save/unsave via /me/library
     src/components/Toast.tsx           Toasts + player error banner
     src/components/AddToPlaylist.tsx   Add-to-playlist / new-playlist dialog (addToPlaylist(), newPlaylist())
+    src/components/ErrorBoundary.tsx   Crash safety nets: PageError (per page) and AppError (whole app)
     src/components/Icon.tsx            Inline SVG icon set
 
     src/pages/Home.tsx          Greeting, jump back in, For you, recently played,
@@ -190,7 +191,11 @@ Spotify locked down Development Mode apps in Nov 2024 and again Feb/Mar 2026:
   The artist page shows these as "Popular".
 - Assume any `limit` might now be 10 and check the endpoint's reference page.
 - Playlists: `tracks` was renamed to `items`, and each entry's `track` to
-  `item`. `playlistTracks()` reads either. Song lists are only returned for
+  `item`. `playlistTracks()` reads either. Real playlist pages contain null
+  entries, `item: null`, local files (`id: null`), removed songs and podcast
+  episodes (no `album`/`artists`). Always go through `entriesToTracks()`,
+  which drops anything a song row can't draw. Skipping this once caused a
+  black-screen crash on some playlists. Song lists are only returned for
   playlists the user owns or collaborates on; followed playlists give metadata
   only (the UI says so and still plays them via `context_uri`).
 - Library: the old `/me/tracks` PUT/DELETE/contains are gone. Use
@@ -303,6 +308,18 @@ JavaScript. Keep it smooth:
 - Don't re-render lists every frame. Animate with refs and CSS variables.
 - Measure before and after: open `?demo`, press L, and count
   requestAnimationFrame frames over 5s in Playwright (aim for about 60fps).
+
+## Crash handling
+
+- `main.tsx` wraps the app in an `ErrorBoundary` showing `AppError` (reload
+  button) instead of a black window.
+- `App.tsx` wraps routed pages in an `ErrorBoundary` keyed by `location.hash`
+  showing `PageError`: the sidebar and player keep working, and navigating
+  resets it. The last error is saved to localStorage `afterglow.lastError`
+  (message, stack, component stack, route). Ask Dylan for a screenshot of the
+  message if a page breaks.
+- `TrackList` draws 120 rows, then 120 more as an IntersectionObserver
+  sentinel (root `.main`, 1200px margin) comes near. Keep long lists chunked.
 
 ## Known gaps and ideas
 

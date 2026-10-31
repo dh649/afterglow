@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { controls, player } from "../lib/player";
 import { settings } from "../lib/settings";
 import { useStore } from "../lib/store";
@@ -8,10 +8,10 @@ import { Icon } from "./Icon";
 import { toast } from "./Toast";
 import { addToPlaylist } from "./AddToPlaylist";
 
-export function Artists({ artists }: { artists: Pick<ArtistRef, "id" | "name">[] }) {
+export function Artists({ artists }: { artists?: Pick<ArtistRef, "id" | "name">[] | null }) {
   return (
     <>
-      {artists.map((a, i) => (
+      {(artists ?? []).map((a, i) => (
         <Fragment key={a.id + i}>
           {i > 0 && ", "}
           <a href={href.artist(a.id)} onClick={(e) => e.stopPropagation()}>
@@ -42,10 +42,28 @@ interface Props {
   showAlbum?: boolean;
 }
 
+/** Rows drawn at first, and added each time you scroll near the end. */
+const CHUNK = 120;
+
 export function TrackList({ tracks, onPlay, onRemove, showCover = true, showAlbum = true }: Props) {
   const current = useStore(player, (s) => s.track?.id);
   const paused = useStore(player, (s) => s.paused);
   const dbl = useStore(settings, (s) => s.doubleClick);
+
+  // Long playlists: draw rows in chunks as you scroll instead of thousands at once.
+  const [limit, setLimit] = useState(CHUNK);
+  const sentinel = useRef<HTMLLIElement>(null);
+  const hasMore = tracks.length > limit;
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !hasMore) return;
+    const io = new IntersectionObserver(
+      (entries) => entries.some((e) => e.isIntersecting) && setLimit((n) => n + CHUNK),
+      { root: el.closest(".main"), rootMargin: "1200px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, limit]);
 
   const queue = (t: Track) => {
     controls.addToQueue(t.uri);
@@ -54,7 +72,7 @@ export function TrackList({ tracks, onPlay, onRemove, showCover = true, showAlbu
 
   return (
     <ol className={`tracks${showAlbum ? "" : " no-album"}`}>
-      {tracks.map((t, i) => {
+      {tracks.slice(0, limit).map((t, i) => {
         const playing = t.id === current;
         return (
           <li
@@ -71,7 +89,7 @@ export function TrackList({ tracks, onPlay, onRemove, showCover = true, showAlbu
               </button>
             </span>
             <span className="track-main">
-              {showCover && <img className="track-cover" src={pickImage(t.album.images, 64)} alt="" loading="lazy" />}
+              {showCover && <img className="track-cover" src={pickImage(t.album?.images, 64)} alt="" loading="lazy" />}
               <span className="track-text">
                 <span className="track-name">
                   {t.name}
@@ -83,8 +101,8 @@ export function TrackList({ tracks, onPlay, onRemove, showCover = true, showAlbu
               </span>
             </span>
             {showAlbum && (
-              <a className="track-album" href={href.album(t.album.id)}>
-                {t.album.name}
+              <a className="track-album" href={t.album?.id ? href.album(t.album.id) : undefined}>
+                {t.album?.name}
               </a>
             )}
             <span className="track-end">
@@ -104,6 +122,7 @@ export function TrackList({ tracks, onPlay, onRemove, showCover = true, showAlbu
           </li>
         );
       })}
+      {hasMore && <li ref={sentinel} className="tracks-more" aria-hidden="true" />}
     </ol>
   );
 }

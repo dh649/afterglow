@@ -494,6 +494,14 @@ button.lyric:hover { opacity: 1 !important; }
 .hint { color: var(--faint); font-size: 13px; margin-top: 16px; }
 .setup-error { color: #ffb4b4; margin-top: 14px; font-size: 14px; }
 
+/* ============ Page error (shown instead of a crashed page) ============ */
+.page-error { max-width: 640px; }
+.page-error h1 { font-size: 32px; font-weight: 900; letter-spacing: -0.035em; margin-bottom: 10px; }
+.page-error > p { color: var(--muted); }
+.page-error-actions { display: flex; gap: 10px; margin: 20px 0 26px; }
+.page-error-actions a:hover { text-decoration: none; }
+.page-error-detail { font-size: 13px; color: var(--faint) !important; overflow-wrap: anywhere; }
+
 /* ============ Dialog (add to playlist) ============ */
 .dialog-backdrop {
   position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px;

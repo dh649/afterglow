@@ -13,6 +13,7 @@ import { Toasts } from "./components/Toast";
 import { MiniPlayerPortal } from "./components/MiniPlayer";
 import { QueuePanel } from "./components/QueuePanel";
 import { AddToPlaylistDialog } from "./components/AddToPlaylist";
+import { ErrorBoundary, PageError } from "./components/ErrorBoundary";
 import { Setup } from "./pages/Setup";
 import { Home } from "./pages/Home";
 import { SearchPage } from "./pages/Search";
@@ -100,6 +101,7 @@ function Shell() {
       <div className={`shell${open ? " np-open" : ""}${queueOpen ? " queue-open" : ""}`}>
         <Sidebar route={route} />
         <main className="main glass" ref={main}>
+          <ErrorBoundary resetKey={location.hash} fallback={(error, retry) => <PageError error={error} retry={retry} />}>
           {route.page === "home" && <Home />}
           {route.page === "search" && <SearchPage q={route.q} />}
           {route.page === "liked" && <LikedPage />}
@@ -107,6 +109,7 @@ function Shell() {
           {route.page === "album" && <AlbumPage id={route.id} key={route.id} />}
           {route.page === "artist" && <ArtistPage id={route.id} key={route.id} />}
           {route.page === "settings" && <SettingsPage />}
+          </ErrorBoundary>
         </main>
         {queueOpen && <QueuePanel onClose={closeQueue} />}
         <PlayerBar onOpen={toggleOpen} open={open} onQueue={toggleQueue} queueOpen={queueOpen} />

@@ -96,10 +96,26 @@ export function pickImage(images: Image[] | null | undefined, target = 300): str
   return (sorted.find((i) => (i.width ?? 640) >= target) ?? sorted[sorted.length - 1]).url;
 }
 
+type PlaylistEntry = { item?: Track | null; track?: Track | null } | null;
+
+/**
+ * Turns a page of playlist entries into songs the app can show. Real playlists
+ * can hold blank entries, local files, removed songs and podcast episodes,
+ * which lack the album or artist info a song row needs, so those are skipped.
+ */
+export function entriesToTracks(entries: PlaylistEntry[] | undefined): Track[] {
+  return (entries ?? [])
+    .map((x) => x?.item ?? x?.track)
+    .filter(
+      (t): t is Track =>
+        !!t && !!t.id && !!t.uri && !!t.album && Array.isArray(t.artists) && (t as { type?: string }).type !== "episode",
+    );
+}
+
 export function playlistTracks(p: Playlist): Track[] | null {
-  const block = (p.items ?? p.tracks) as Paging<{ item?: Track | null; track?: Track | null }> | undefined;
+  const block = (p.items ?? p.tracks) as Paging<PlaylistEntry> | undefined;
   if (!block || !Array.isArray(block.items)) return null; // Spotify hides songs for playlists you don't own
-  return block.items.map((x) => x.item ?? x.track).filter((t): t is Track => !!t && !!t.id);
+  return entriesToTracks(block.items);
 }
 
 export function playlistCount(p: Playlist): number | undefined {

@@ -3,7 +3,7 @@ import { useAsync, href, invalidate, library } from "../lib/hooks";
 import { useStore } from "../lib/store";
 import { toast } from "../components/Toast";
 import { controls } from "../lib/player";
-import { pickImage, playlistCount, playlistTracks, spotify, type Paging, type Track } from "../lib/spotify";
+import { entriesToTracks, pickImage, playlistCount, playlistTracks, spotify, type Paging, type Track } from "../lib/spotify";
 import { CollectionHeader, HeaderSkeleton, totalDuration } from "../components/CollectionHeader";
 import { TrackList, TrackListSkeleton } from "../components/TrackList";
 import { Shelf, ShelfSkeleton } from "../components/Shelf";
@@ -43,9 +43,9 @@ export function PlaylistPage({ id }: { id: string }) {
     let live = true;
     (async () => {
       while (next && live) {
-        const page = await spotify.page<{ item?: Track | null; track?: Track | null }>(next).catch(() => null);
+        const page = await spotify.page<{ item?: Track | null; track?: Track | null } | null>(next).catch(() => null);
         if (!page) break;
-        const songs = page.items.map((x) => x.item ?? x.track).filter((t): t is Track => !!t?.id);
+        const songs = entriesToTracks(page.items);
         if (live) setMore((m) => [...m, ...songs]);
         next = page.next;
       }
@@ -223,7 +223,7 @@ export function LikedPage() {
     setLoading(true);
     try {
       const page = await spotify.liked(offset);
-      setTracks((t) => [...(offset ? (t ?? []) : []), ...page.items.map((x) => x.track)]);
+      setTracks((t) => [...(offset ? (t ?? []) : []), ...entriesToTracks(page.items)]);
       setTotal(page.total);
       setNext(page.next ? offset + page.items.length : null);
     } catch (e) {

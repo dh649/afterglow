@@ -2,6 +2,19 @@
 
 Every change to Afterglow, newest first, in plain language.
 
+## October 31, 2026
+
+### No more black screen on playlists
+- Fixed playlists sometimes turning the whole window black. Real playlists can
+  contain blank entries, removed songs, local files or podcast episodes, which
+  were missing info a song row needs and crashed the page. Those are now
+  skipped.
+- Long playlists open much faster. Afterglow now shows songs about 120 at a
+  time and adds more as you scroll, instead of drawing thousands at once.
+- Safety net: if a page ever does break, you'll see a "This page hit a
+  problem" message with a Try again button, and the sidebar and player keep
+  working. No more reloading the whole app.
+
 ## October 17, 2026
 
 ### Edit playlists, saved to Spotify
