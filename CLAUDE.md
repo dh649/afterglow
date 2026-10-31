@@ -311,6 +311,16 @@ JavaScript. Keep it smooth:
 
 ## Crash handling
 
+- Effects must use block bodies and return nothing or a cleanup function:
+  `useEffect(() => { el.scrollTo(...); }, deps)`, never
+  `useEffect(() => el.scrollTo(...), deps)`. Chrome 150+ makes
+  `scrollTo`/`scrollBy`/`scrollIntoView` return a Promise, and React calls an
+  effect's return value as cleanup, so returning it crashed the whole app on
+  every page change ("T is not a function", Oct 31 2026). Also don't pass
+  arbitrary functions straight to `useEffect` (`useEffect(fn, deps)`).
+- To test like current Chrome in Playwright, add an init script that makes
+  `Element.prototype.scrollTo/scrollBy/scrollIntoView` return
+  `Promise.resolve()` (the bundled Chromium is older).
 - `main.tsx` wraps the app in an `ErrorBoundary` showing `AppError` (reload
   button) instead of a black window.
 - `App.tsx` wraps routed pages in an `ErrorBoundary` keyed by `location.hash`

@@ -4,6 +4,12 @@ Every change to Afterglow, newest first, in plain language.
 
 ## October 31, 2026
 
+### Playlists open again (crash on every click fixed)
+- Opening any page crashed the app with "T is not a function". A recent
+  Chrome update changed how scrolling commands report back, and Afterglow
+  passed that new reply to React, which tried to run it. Afterglow now
+  ignores it, along with a few other spots written the same way.
+
 ### No more black screen on playlists
 - Fixed playlists sometimes turning the whole window black. Real playlists can
   contain blank entries, removed songs, local files or podcast episodes, which

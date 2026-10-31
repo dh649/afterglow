@@ -12,7 +12,9 @@ export function SearchPage({ q }: { q: string }) {
   const input = useRef<HTMLInputElement>(null);
   const query = useDebounced(text.trim(), 300);
 
-  useEffect(() => input.current?.focus(), []);
+  useEffect(() => {
+    input.current?.focus();
+  }, []);
   useEffect(() => {
     // Keep the address bar in sync so back/forward works.
     const target = href.search(query);

@@ -62,8 +62,15 @@ function Shell() {
   const main = useRef<HTMLElement>(null);
   useTheme();
 
-  useEffect(connectPlayer, []);
-  useEffect(() => main.current?.scrollTo({ top: 0 }), [route.page, "id" in route ? route.id : ""]);
+  // Effects must not return anything except a cleanup function. Newer Chrome
+  // makes scrollTo() return a promise, and returning it crashed the app on
+  // every page change ("T is not a function"). Keep these as block bodies.
+  useEffect(() => {
+    connectPlayer();
+  }, []);
+  useEffect(() => {
+    main.current?.scrollTo({ top: 0 });
+  }, [route.page, "id" in route ? route.id : ""]);
 
   const toggleOpen = useCallback(() => setOpen((o) => !o), []);
   const close = useCallback(() => setOpen(false), []);
@@ -93,7 +100,9 @@ function Shell() {
   }, [toggleOpen, toggleQueue, open]);
 
   // Following a link from the now-playing view should close it.
-  useEffect(close, [route.page, "id" in route ? route.id : "", close]);
+  useEffect(() => {
+    close();
+  }, [route.page, "id" in route ? route.id : "", close]);
 
   return (
     <>

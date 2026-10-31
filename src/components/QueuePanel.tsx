@@ -28,7 +28,9 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
   const { data, loading, error } = useAsync(`queue:${trackUri}:${version}`, spotify.queue);
   const closeBtn = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => closeBtn.current?.focus(), []);
+  useEffect(() => {
+    closeBtn.current?.focus();
+  }, []);
 
   // Spotify can send episodes or deleted songs in the queue; skip anything without an album.
   const upcoming = (data?.queue ?? []).filter((t): t is Track => !!t?.album);
