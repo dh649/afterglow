@@ -141,9 +141,15 @@ export function Lyrics({ track }: { track: NowPlaying }) {
   const size = useStore(settings, (s) => s.lyricsSize);
   const offset = useStore(settings, (s) => s.lyricsOffsetMs);
 
+  const shownFor = useRef("");
+
   useEffect(() => {
     let live = true;
-    setData(null);
+    // Only blank the view for a new song; a background retry keeps the message up.
+    if (shownFor.current !== track.id) {
+      shownFor.current = track.id;
+      setData(null);
+    }
     getLyrics(track).then((d) => live && setData(d));
     return () => {
       live = false;
@@ -151,6 +157,17 @@ export function Lyrics({ track }: { track: NowPlaying }) {
     // The track object is rebuilt on every player update; only a new song matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track.id, attempt]);
+
+  // If the lyrics site is down, keep quietly trying every 45 seconds.
+  useEffect(() => {
+    if (data?.kind !== "offline") return;
+    const timer = setTimeout(() => {
+      forgetLyrics(track.id);
+      setAttempt((n) => n + 1);
+    }, 45_000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, track.id]);
 
   const nudge = (ms: number) => settings.set({ lyricsOffsetMs: Math.max(-5000, Math.min(5000, offset + ms)) });
 
@@ -173,7 +190,8 @@ export function Lyrics({ track }: { track: NowPlaying }) {
       {data?.kind === "offline" && (
         <div className="lyrics-msg">
           <div className="lyrics-offline">
-            <p>Couldn't reach the lyrics service.</p>
+            <p>The lyrics site isn't responding right now.</p>
+            <p className="lyrics-offline-sub">Afterglow keeps trying in the background, and lyrics will appear once it's back.</p>
             <button
               className="pill-btn"
               onClick={() => {

@@ -4,6 +4,15 @@ Every change to Afterglow, newest first, in plain language.
 
 ## October 31, 2026
 
+### Lyrics during outages
+- The lyrics site (LRCLIB) went down tonight with a server error. That's on
+  their end, and lyrics come back on their own once it recovers.
+- Afterglow now saves lyrics on your computer once they've loaded, so songs
+  you've played before still show lyrics while the site is down (and open
+  instantly). Up to 400 songs are kept.
+- When the site isn't responding, Afterglow says so and keeps retrying every
+  45 seconds in the background, so lyrics pop in once it's back.
+
 ### Playlists open again (crash on every click fixed)
 - Opening any page crashed the app with "T is not a function". A recent
   Chrome update changed how scrolling commands report back, and Afterglow

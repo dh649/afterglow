@@ -238,7 +238,17 @@ Source: LRCLIB (lrclib.net), free, timed LRC lyrics.
   `best()` scores results by synced lyrics, duration, title and artist match,
   and requires a score of 7+ so the wrong song's lyrics never show.
 - Results: `synced | plain | instrumental | none | offline`. `offline` (relays
-  unreachable) isn't cached, and the UI offers "Try again".
+  unreachable) isn't cached, and the UI offers "Try again" and auto-retries
+  every 45s while the lyrics view is open.
+- Saved lyrics: every real answer is stored in localStorage
+  `afterglow.lyrics.v1` keyed by Spotify track id (`{ at, synced, plain,
+  instrumental }` or `{ at, none: true }`), newest 400 kept, "none" rechecked
+  after 7 days. `fetchLyrics()` checks it first, so played songs work offline.
+- LRCLIB outages happen (Oct 31 2026: Cloudflare 502, reportedly a database
+  migration). A 502 has no CORS header, so in the browser it looks exactly like
+  "blocked by CORS". Open the API URL directly in a tab to tell them apart.
+  The public relays (`api.cors.lol`, `allorigins`) were also dead that day;
+  Dylan's own Worker (`lyricsRelay`) is the reliable fallback.
 - Tested live in a browser: Blinding Lights, Bad Habit, Let It Be (Remastered
   2009), FE!N (feat. Playboi Carti), and Sicko Mode all matched directly.
 - Rendering (Lyrics.tsx `Synced`): one requestAnimationFrame loop. React

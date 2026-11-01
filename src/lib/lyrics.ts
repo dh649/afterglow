@@ -141,8 +141,66 @@ function best(results: LrclibRecord[], t: NowPlaying): LrclibRecord | undefined 
   return ranked.find((x) => x.s >= 7)?.r;
 }
 
+/* ---------- Saved lyrics ----------
+ * Lyrics that loaded once are kept in this browser, so songs you've played
+ * before still show lyrics when the lyrics site is down, and open instantly.
+ */
+
+const SAVED_KEY = "afterglow.lyrics.v1";
+const MAX_SAVED = 400;
+const RECHECK_NONE_MS = 7 * 24 * 60 * 60 * 1000; // songs with no lyrics: look again after a week
+
+interface Saved {
+  at: number;
+  synced?: string | null;
+  plain?: string | null;
+  instrumental?: boolean;
+  none?: boolean;
+}
+
+function readSaved(): Record<string, Saved> {
+  try {
+    return JSON.parse(localStorage.getItem(SAVED_KEY) ?? "{}") ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function loadSaved(id: string, durationMs: number): Lyrics | null {
+  const s = readSaved()[id];
+  if (!s) return null;
+  if (s.none) return Date.now() - s.at < RECHECK_NONE_MS ? { kind: "none" } : null;
+  return toLyrics({ syncedLyrics: s.synced ?? null, plainLyrics: s.plain ?? null, instrumental: !!s.instrumental, duration: null }, durationMs);
+}
+
+function save(id: string, rec: LrclibRecord | null) {
+  const all = readSaved();
+  all[id] = rec
+    ? { at: Date.now(), synced: rec.syncedLyrics, plain: rec.syncedLyrics ? null : rec.plainLyrics, instrumental: rec.instrumental }
+    : { at: Date.now(), none: true };
+  let entries = Object.entries(all).sort((a, b) => b[1].at - a[1].at).slice(0, MAX_SAVED);
+  // If the browser's storage is full, keep halving until it fits.
+  while (entries.length) {
+    try {
+      localStorage.setItem(SAVED_KEY, JSON.stringify(Object.fromEntries(entries)));
+      return;
+    } catch {
+      entries = entries.slice(0, Math.floor(entries.length / 2));
+    }
+  }
+}
+
 async function fetchLyrics(t: NowPlaying): Promise<Lyrics> {
   if (isDemo) return { kind: "synced", lines: parseLrc(demoLyrics(t.id), t.durationMs) };
+
+  const saved = loadSaved(t.id, t.durationMs);
+  if (saved) return saved;
+
+  // Remember any real answer (including "no lyrics"), never a failed connection.
+  const done = (rec: LrclibRecord | null, out: Lyrics): Lyrics => {
+    if (out.kind !== "offline") save(t.id, out.kind === "none" ? null : rec);
+    return out;
+  };
 
   const artist = t.artists[0]?.name ?? "";
   const secs = Math.round(t.durationMs / 1000);
@@ -151,13 +209,17 @@ async function fetchLyrics(t: NowPlaying): Promise<Lyrics> {
 
   // 1. Exact lookups, a handful of name variations.
   let fallback: Lyrics | null = null;
+  let fallbackRec: LrclibRecord | null = null;
   for (const title of titles) {
     for (const album of albums) {
       const hit = await directGet(artist, title, album, secs);
       if (!hit) continue;
       const found = toLyrics(hit, t.durationMs);
-      if (found.kind === "synced" || found.kind === "instrumental") return found;
-      fallback ??= found.kind === "plain" ? found : null;
+      if (found.kind === "synced" || found.kind === "instrumental") return done(hit, found);
+      if (!fallback && found.kind === "plain") {
+        fallback = found;
+        fallbackRec = hit;
+      }
     }
   }
 
@@ -168,11 +230,11 @@ async function fetchLyrics(t: NowPlaying): Promise<Lyrics> {
     const pick = best(results, t);
     if (pick) {
       const found = toLyrics(pick, t.durationMs);
-      if (found.kind !== "none") return found;
+      if (found.kind !== "none") return done(pick, found);
     }
-    return fallback ?? { kind: "none" };
+    return fallback ? done(fallbackRec, fallback) : done(null, { kind: "none" });
   }
-  return fallback ?? { kind: "offline" };
+  return fallback ? done(fallbackRec, fallback) : { kind: "offline" };
 }
 
 export function getLyrics(t: NowPlaying): Promise<Lyrics> {
