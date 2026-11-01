@@ -144,7 +144,10 @@ redirect comes back as `?code=` on the root, handled before render.
 Loads `https://sdk.scdn.co/spotify-player.js` and registers the tab as a
 Spotify Connect device named "Afterglow". `player_state_changed` feeds the
 `player` store. Position is interpolated (`currentPosition()`) from `position` + `stamp`.
-Play commands go through the Web API with `device_id`. `activateElement()` is
+Play commands go through the Web API with `device_id`. Always send an
+`offset` with `uris`: without one, Spotify with shuffle on starts at a random
+song in the list. `playWindow()` picks up to 100 uris around the clicked song
+(20 before it) and its position in them. `activateElement()` is
 called before playing to satisfy browser autoplay rules.
 
 Other devices (don't steal playback): on `ready`, `checkActiveDevice()` calls

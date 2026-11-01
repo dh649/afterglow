@@ -314,6 +314,16 @@ async function playHereWith(device: string, body: Record<string, unknown>) {
   }
 }
 
+/**
+ * Spotify takes at most 100 songs at once. Pick 100 around the clicked song
+ * (some before it so "previous" works) and where the clicked song sits in them.
+ */
+export function playWindow(uris: string[], index: number) {
+  const i = Math.min(Math.max(0, index), Math.max(0, uris.length - 1));
+  const start = Math.max(0, Math.min(i - 20, uris.length - 100));
+  return { slice: uris.slice(start, start + 100), offset: i - start };
+}
+
 /* ---------- Controls ---------- */
 
 export const controls = {
@@ -322,10 +332,10 @@ export const controls = {
   /** For lists without a Spotify context (liked songs, search results). */
   playUris: (uris: string[], index = 0) =>
     withDevice((d) => {
-      // Spotify accepts a limited list, so send a window starting at the chosen song.
-      const start = Math.max(0, index);
-      const slice = uris.slice(start, start + 100);
-      return isDemo ? demoPlay() : playHereWith(d, { uris: slice });
+      const { slice, offset } = playWindow(uris, index);
+      // Always say which song to start on. Without it, Spotify with shuffle on
+      // starts at a random song from the list instead of the one you clicked.
+      return isDemo ? demoPlay() : playHereWith(d, { uris: slice, offset: { position: offset } });
     }),
   /** Moves whatever is playing on another device to this tab. */
   playHere: () => withDevice((d) => (isDemo ? demoSet({ remote: null }) : spotify.transfer(d, true))),

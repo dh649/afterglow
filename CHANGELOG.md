@@ -4,6 +4,12 @@ Every change to Afterglow, newest first, in plain language.
 
 ## October 31, 2026
 
+### Clicking a song plays that song
+- With shuffle on, clicking a song in Popular, search results, Liked songs or
+  Home sometimes played a nearby song instead. Afterglow now tells Spotify
+  exactly which song to start with, so it always plays the one you clicked
+  first (then shuffles the rest).
+
 ### Lyrics during outages
 - The lyrics site (LRCLIB) went down tonight with a server error. That's on
   their end, and lyrics come back on their own once it recovers.
