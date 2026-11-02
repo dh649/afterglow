@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { controls, currentPosition, player } from "../lib/player";
 import { useStore } from "../lib/store";
 import { formatTime, href, useFrame } from "../lib/hooks";
@@ -13,9 +13,39 @@ export function Timeline({ compact }: { compact?: boolean }) {
   const duration = useStore(player, (s) => s.track?.durationMs ?? 0);
   const paused = useStore(player, (s) => s.paused);
   const [drag, setDrag] = useState<number | null>(null);
+  const dragRef = useRef<number | null>(null);
   useFrame(!paused && drag === null, compact ? 500 : undefined);
   const pos = drag ?? currentPosition();
   const pct = duration ? (pos / duration) * 100 : 0;
+
+  const startDrag = (v: number) => {
+    dragRef.current = v;
+    setDrag(v);
+  };
+  const finishDrag = () => {
+    if (dragRef.current !== null) controls.seek(dragRef.current);
+    dragRef.current = null;
+    setDrag(null);
+  };
+
+  // While dragging, listen for the release anywhere on the page. Letting go
+  // off the bar used to leave it stuck in "dragging" mode, frozen in place.
+  useEffect(() => {
+    if (drag === null) return;
+    const end = () => finishDrag();
+    addEventListener("pointerup", end);
+    addEventListener("pointercancel", end);
+    addEventListener("blur", end);
+    // Safety net: never stay stuck for long, whatever happens.
+    const timer = setTimeout(end, 8000);
+    return () => {
+      removeEventListener("pointerup", end);
+      removeEventListener("pointercancel", end);
+      removeEventListener("blur", end);
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag === null]);
 
   return (
     <div className={`timeline${compact ? " compact" : ""}`}>
@@ -27,15 +57,10 @@ export function Timeline({ compact }: { compact?: boolean }) {
         step={500}
         value={pos}
         style={{ "--pct": `${pct}%` } as React.CSSProperties}
-        onChange={(e) => setDrag(Number(e.target.value))}
-        onPointerUp={() => {
-          if (drag !== null) controls.seek(drag);
-          setDrag(null);
-        }}
-        onKeyUp={() => {
-          if (drag !== null) controls.seek(drag);
-          setDrag(null);
-        }}
+        onChange={(e) => startDrag(Number(e.target.value))}
+        onPointerUp={finishDrag}
+        onKeyUp={finishDrag}
+        onBlur={finishDrag}
         aria-label="Seek"
         aria-valuetext={`${formatTime(pos)} of ${formatTime(duration)}`}
         disabled={!duration}

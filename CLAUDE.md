@@ -347,6 +347,10 @@ JavaScript. Keep it smooth:
   resets it. The last error is saved to localStorage `afterglow.lastError`
   (message, stack, component stack, route). Ask Dylan for a screenshot of the
   message if a page breaks.
+- Seek bar (`Timeline` in PlayerBar.tsx): while dragging it stops ticking, so
+  the drag must always end. It listens for `pointerup`/`pointercancel`/`blur`
+  on the window (not just the input), ends on input blur and key up, and has
+  an 8s safety timeout. Releasing off the bar used to freeze it.
 - `TrackList` draws 120 rows, then 120 more as an IntersectionObserver
   sentinel (root `.main`, 1200px margin) comes near. Keep long lists chunked.
 

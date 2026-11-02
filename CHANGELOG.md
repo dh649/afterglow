@@ -2,6 +2,14 @@
 
 Every change to Afterglow, newest first, in plain language.
 
+## November 2, 2026
+
+### Progress bar no longer freezes
+- Dragging the progress bar and letting go anywhere off the bar left it stuck
+  in "dragging" mode, so the bar and the time stopped moving even though the
+  music kept playing. Afterglow now notices the release wherever it happens
+  (and gives up dragging after 8 seconds no matter what).
+
 ## November 1, 2026
 
 ### Lyrics load when the lyrics site is busy
