@@ -231,7 +231,13 @@ Source: LRCLIB (lrclib.net), free, timed LRC lyrics.
   like a network error ("Failed to fetch"). `album_name` is effectively
   required and must match; duration must be within about 2 seconds.
 - `GET /api/search` sends no CORS headers at all, so it can't be called from
-  the browser directly.
+  the browser directly. UPDATE Nov 1 2026: search (and 404 answers) are now
+  readable from the browser, so `relaySearch()` tries LRCLIB directly first,
+  then the relays.
+- LRCLIB is often overloaded and answers 503 `ServerOverloaded` (also 502,
+  429). `lrclib()` retries those up to 3 times (1.2s, then 2.4s). A lookup that
+  stayed busy returns "busy", and the song ends as `offline` (retried later),
+  never as `none`.
 - Strategy: try direct `/api/get` with the original and cleaned title
   (`cleanTitle` strips feat./remaster/live/version suffixes) and album
   (`cleanAlbum` strips parentheses and " - ..." suffixes). If nothing matches,

@@ -76,23 +76,44 @@ export function cleanAlbum(a: string) {
 
 /* ---------- Requests ---------- */
 
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /**
- * LRCLIB's exact lookup works straight from the browser, but only answers
- * browsers when it finds a match (a miss looks like a network error).
+ * Fetches from LRCLIB, waiting and retrying when it says it's busy (503/502/429).
+ * Returns the response, "busy" if it stayed busy, or null if the request
+ * couldn't be made (offline, or blocked by the browser).
  */
-async function directGet(artist: string, title: string, album: string, secs: number): Promise<LrclibRecord | null> {
-  const qs = new URLSearchParams({ artist_name: artist, track_name: title, album_name: album, duration: String(secs) });
-  try {
-    const res = await fetch(`${LRCLIB}/api/get?${qs}`);
-    return res.ok ? ((await res.json()) as LrclibRecord) : null;
-  } catch {
-    return null;
+async function lrclib(url: string, tries = 3): Promise<Response | "busy" | null> {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (![429, 502, 503, 504].includes(res.status)) return res;
+    } catch {
+      return null;
+    }
+    if (i < tries - 1) await wait(1200 * (i + 1));
   }
+  return "busy";
+}
+
+type Get = LrclibRecord | "miss" | "busy";
+
+/** LRCLIB's exact lookup: artist, title, album and length must all match. */
+async function directGet(artist: string, title: string, album: string, secs: number): Promise<Get> {
+  const qs = new URLSearchParams({ artist_name: artist, track_name: title, album_name: album, duration: String(secs) });
+  const res = await lrclib(`${LRCLIB}/api/get?${qs}`);
+  if (res === "busy") return "busy";
+  if (!res || !res.ok) return "miss"; // a miss sometimes shows up as a blocked request
+  return ((await res.json().catch(() => null)) as LrclibRecord | null) ?? "miss";
 }
 
 /**
- * LRCLIB's search doesn't allow browser requests, so it goes through a relay:
- * the person's own (Settings), or free public ones as a fallback.
+ * LRCLIB's fuzzy search. Tried directly first (allowed since late 2026), then
+ * through the person's own relay or free public relays as a fallback.
+ * Returns results, "busy" if LRCLIB was overloaded, or null if unreachable.
  */
 function relays(target: string): string[] {
   const own = settings.get().lyricsRelay.trim().replace(/\/+$/, "");
@@ -103,22 +124,20 @@ function relays(target: string): string[] {
   ];
 }
 
-async function relaySearch(params: Record<string, string>): Promise<LrclibRecord[] | null> {
+async function relaySearch(params: Record<string, string>): Promise<LrclibRecord[] | "busy" | null> {
   const target = `${LRCLIB}/api/search?${new URLSearchParams(params)}`;
-  for (const url of relays(target)) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 8000);
-      const res = await fetch(url, { signal: ctrl.signal });
-      clearTimeout(timer);
-      if (!res.ok) continue;
-      const json = await res.json();
-      if (Array.isArray(json)) return json as LrclibRecord[]; // relays sometimes return their own error object
-    } catch {
-      /* try the next relay */
+  let busy = false;
+  for (const url of [target, ...relays(target)]) {
+    const res = await lrclib(url, url === target ? 3 : 1);
+    if (res === "busy") {
+      busy = true;
+      continue;
     }
+    if (!res?.ok) continue;
+    const json = await res.json().catch(() => null);
+    if (Array.isArray(json)) return json as LrclibRecord[]; // relays sometimes return their own error object
   }
-  return null;
+  return busy ? "busy" : null;
 }
 
 /** Picks the result that best matches the song, preferring timed lyrics of the same length. */
@@ -210,10 +229,12 @@ async function fetchLyrics(t: NowPlaying): Promise<Lyrics> {
   // 1. Exact lookups, a handful of name variations.
   let fallback: Lyrics | null = null;
   let fallbackRec: LrclibRecord | null = null;
+  let busy = false;
   for (const title of titles) {
     for (const album of albums) {
       const hit = await directGet(artist, title, album, secs);
-      if (!hit) continue;
+      if (hit === "busy") busy = true;
+      if (hit === "busy" || hit === "miss") continue;
       const found = toLyrics(hit, t.durationMs);
       if (found.kind === "synced" || found.kind === "instrumental") return done(hit, found);
       if (!fallback && found.kind === "plain") {
@@ -225,14 +246,17 @@ async function fetchLyrics(t: NowPlaying): Promise<Lyrics> {
 
   // 2. Fuzzy search through a relay.
   let results = await relaySearch({ track_name: cleanTitle(t.name), artist_name: artist });
-  if (results && !results.length) results = await relaySearch({ q: `${cleanTitle(t.name)} ${artist}` });
-  if (results) {
+  if (Array.isArray(results) && !results.length) results = await relaySearch({ q: `${cleanTitle(t.name)} ${artist}` });
+  if (results === "busy") busy = true;
+  if (Array.isArray(results)) {
     const pick = best(results, t);
     if (pick) {
       const found = toLyrics(pick, t.durationMs);
       if (found.kind !== "none") return done(pick, found);
     }
-    return fallback ? done(fallbackRec, fallback) : done(null, { kind: "none" });
+    // Only trust "no lyrics" if LRCLIB wasn't too busy to answer every lookup.
+    if (fallback) return done(fallbackRec, fallback);
+    return busy ? { kind: "offline" } : done(null, { kind: "none" });
   }
   return fallback ? done(fallbackRec, fallback) : { kind: "offline" };
 }

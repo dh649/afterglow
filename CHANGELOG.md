@@ -2,6 +2,19 @@
 
 Every change to Afterglow, newest first, in plain language.
 
+## November 1, 2026
+
+### Lyrics load when the lyrics site is busy
+- The lyrics site has been overloaded and often answers "busy, try again".
+  Afterglow used to treat that as a failure and show "isn't responding".
+  Now it waits a moment and asks again (up to 3 times), which is how
+  C20H25N3o by 880 South got its lyrics back.
+- The lyrics site's search now works directly from Afterglow, so songs whose
+  album name or length doesn't exactly match Spotify's get found too. The
+  free relays are only a last resort.
+- A song only gets marked "no lyrics" when the site actually answered.
+  "Busy" never counts as "no lyrics".
+
 ## October 31, 2026
 
 ### Clicking a song plays that song
