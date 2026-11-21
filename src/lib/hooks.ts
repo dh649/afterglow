@@ -53,10 +53,67 @@ export const href = {
 /* ---------- Data loading with a small in-memory cache ---------- */
 
 const cache = new Map<string, { at: number; data: unknown }>();
-const FRESH_MS = 2 * 60 * 1000;
+const inflight = new Map<string, Promise<unknown>>();
+/** Data younger than this is shown without asking Spotify again. */
+const STALE_MS = 15 * 1000;
 
+/**
+ * Bumped when Afterglow should quietly re-check Spotify for changes you made
+ * elsewhere (in the Spotify app, on your phone): when you come back to the
+ * window, and every 90 seconds while it's showing.
+ */
+export const freshness = createStore({ tick: 0 });
+let lastBump = 0;
+function bump(minGapMs: number) {
+  if (Date.now() - lastBump < minGapMs) return;
+  lastBump = Date.now();
+  freshness.set((f) => ({ tick: f.tick + 1 }));
+}
+if (typeof window !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") bump(10_000);
+  });
+  addEventListener("focus", () => bump(10_000));
+  setInterval(() => {
+    if (document.visibilityState === "visible") bump(0);
+  }, 90_000);
+}
+
+function same(a: unknown, b: unknown) {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches once per key even if several parts of the page ask at the same time,
+ * and keeps the old object when nothing changed so screens don't redraw.
+ */
+function load<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  let p = inflight.get(key) as Promise<T> | undefined;
+  if (!p) {
+    p = fn()
+      .then((data) => {
+        const prev = cache.get(key);
+        const keep = prev && same(prev.data, data) ? (prev.data as T) : data;
+        cache.set(key, { at: Date.now(), data: keep });
+        return keep;
+      })
+      .finally(() => inflight.delete(key));
+    inflight.set(key, p);
+  }
+  return p;
+}
+
+/**
+ * Loads data for a key. Cached data shows instantly, and is quietly refreshed
+ * from Spotify when it's older than 15 seconds or when the app re-checks.
+ */
 export function useAsync<T>(key: string | null, fn: () => Promise<T>) {
   const hit = key ? cache.get(key) : undefined;
+  const tick = useSyncExternalStore(freshness.subscribe, () => freshness.get().tick);
   const [state, setState] = useState<{ key: string | null; data?: T; error?: Error; loading: boolean }>(() => ({
     key,
     data: hit?.data as T | undefined,
@@ -67,21 +124,24 @@ export function useAsync<T>(key: string | null, fn: () => Promise<T>) {
     if (!key) return;
     let live = true;
     const cached = cache.get(key);
-    setState({ key, data: cached?.data as T | undefined, loading: !cached });
-    if (cached && Date.now() - cached.at < FRESH_MS) return;
-    fn().then(
+    // New key: show what we have (or a loading state) right away.
+    setState((s) => (s.key === key ? s : { key, data: cached?.data as T | undefined, loading: !cached }));
+    if (cached && Date.now() - cached.at < STALE_MS) return;
+    load(key, fn).then(
       (data) => {
-        cache.set(key, { at: Date.now(), data });
-        if (live) setState({ key, data, loading: false });
+        if (live) setState((s) => (s.key === key && s.data === data && !s.loading ? s : { key, data, loading: false }));
       },
-      (error: Error) => live && setState((s) => ({ ...s, error, loading: false })),
+      (error: Error) => {
+        // A failed background refresh keeps showing the last good data.
+        if (live) setState((s) => (s.key === key && s.data !== undefined ? s : { key, data: s.data, error, loading: false }));
+      },
     );
     return () => {
       live = false;
     };
-    // fn is recreated each render; the key decides when to reload.
+    // fn is recreated each render; the key and refresh ticks decide when to reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, tick]);
 
   // Avoid flashing the previous page's data while a new key loads.
   if (state.key !== key) return { data: undefined as T | undefined, error: undefined, loading: true };

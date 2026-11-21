@@ -1,15 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { spotify } from "../lib/spotify";
-import { invalidate, library } from "../lib/hooks";
+import { freshness, invalidate, library } from "../lib/hooks";
+import { useStore } from "../lib/store";
 import { Icon } from "./Icon";
 import { toast } from "./Toast";
 
 /** Heart for songs and albums, or a Follow pill for artists. */
 export function LikeButton({ uri, label, follow, size = 20 }: { uri?: string; label: string; follow?: boolean; size?: number }) {
   const [saved, setSaved] = useState<boolean | null>(null);
+  const tick = useStore(freshness, (f) => f.tick);
+  const lastUri = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    setSaved(null);
+    // Blank the heart only for a new song; a background re-check keeps it shown.
+    if (lastUri.current !== uri) setSaved(null);
+    lastUri.current = uri;
     if (!uri) return;
     let live = true;
     spotify
@@ -19,7 +24,7 @@ export function LikeButton({ uri, label, follow, size = 20 }: { uri?: string; la
     return () => {
       live = false;
     };
-  }, [uri]);
+  }, [uri, tick]);
 
   if (!uri) return null;
 

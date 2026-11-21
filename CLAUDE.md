@@ -133,6 +133,17 @@ The granted `scope` string is saved with the token; `hasPermission()` /
 gate the feature and offer `login()` to reconnect (see AddToPlaylist.tsx and
 Settings > Account). Logins from before scopes were saved count as missing.
 
+### Data refresh (src/lib/hooks.ts)
+
+`useAsync(key, fn)` is stale-while-revalidate: cached data shows instantly
+and is refetched in the background when older than 15s. The `freshness`
+store ticks on window focus / tab visible (throttled 10s) and every 90s while
+visible; mounted `useAsync` calls, `LikeButton` and `LikedPage` re-check on
+each tick, so edits made in the Spotify app appear without a reload.
+Requests are deduped per key, unchanged data keeps its old object (no
+redraw), and a failed background refresh keeps the last good data.
+`PlaylistPage` swaps in refreshed extra pages in one go (no flicker).
+
 ### Routing (src/lib/hooks.ts)
 
 Hash routes so GitHub Pages needs no config: `#/`, `#/search?q=`, `#/liked`,

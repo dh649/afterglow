@@ -2,6 +2,15 @@
 
 Every change to Afterglow, newest first, in plain language.
 
+## November 21, 2026
+
+### Changes you make in Spotify now show up
+- Edit a playlist, make a new one, like a song or save an album in the
+  Spotify app, and Afterglow picks it up on its own. It re-checks when you
+  switch back to the Afterglow window and every 90 seconds while it's open.
+- It updates quietly in place: no loading screens, and long lists and Liked
+  songs keep your scroll position.
+
 ## November 2, 2026
 
 ### Progress bar no longer freezes

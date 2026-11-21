@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useAsync, href, invalidate, library } from "../lib/hooks";
+import { useEffect, useRef, useState } from "react";
+import { useAsync, href, invalidate, library, freshness } from "../lib/hooks";
 import { useStore } from "../lib/store";
 import { toast } from "../components/Toast";
 import { controls } from "../lib/player";
@@ -35,20 +35,28 @@ export function PlaylistPage({ id }: { id: string }) {
   const [more, setMore] = useState<Track[]>([]);
   const first = p ? playlistTracks(p) : null;
 
-  // Load the remaining pages of songs for long playlists.
+  // Load the remaining pages of songs for long playlists. The first time,
+  // songs appear as each page arrives; when the playlist changed on Spotify
+  // and is refreshed, the new list replaces the old one in one go (no flicker).
+  const loadedOnce = useRef(false);
   useEffect(() => {
-    setMore([]);
     if (!p) return;
+    const refreshing = loadedOnce.current;
+    loadedOnce.current = true;
+    if (!refreshing) setMore([]);
     let next = ((p.items ?? p.tracks) as Paging<unknown> | undefined)?.next ?? null;
     let live = true;
     (async () => {
+      const all: Track[] = [];
       while (next && live) {
         const page = await spotify.page<{ item?: Track | null; track?: Track | null } | null>(next).catch(() => null);
         if (!page) break;
         const songs = entriesToTracks(page.items);
-        if (live) setMore((m) => [...m, ...songs]);
+        all.push(...songs);
+        if (live && !refreshing) setMore((m) => [...m, ...songs]);
         next = page.next;
       }
+      if (live && refreshing) setMore(all);
     })();
     return () => {
       live = false;
@@ -236,6 +244,26 @@ export function LikedPage() {
   useEffect(() => {
     void load(0);
   }, []);
+
+  // When the app re-checks Spotify, pick up songs liked or unliked elsewhere.
+  const tick = useStore(freshness, (f) => f.tick);
+  useEffect(() => {
+    if (tick === 0 || (tracks && tracks.length > 50)) return;
+    let live = true;
+    spotify
+      .liked(0)
+      .then((page) => {
+        if (!live) return;
+        setTracks(entriesToTracks(page.items));
+        setTotal(page.total);
+        setNext(page.next ? page.items.length : null);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick]);
 
   if (error && !tracks) return <Failed what="list" error={new Error(error)} />;
   const uris = tracks?.map((t) => t.uri) ?? [];
